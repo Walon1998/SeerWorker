@@ -78,15 +78,15 @@ async def RolloutWorker(args):
         policy = SeerNetwork()
         policy.eval()
 
-        env = MultiEnv(args["num_instances"])
+        env = MultiEnv(args["N"])
         env = NormalizeReward(env, gamma=GAMMA)
 
         obs = env.reset()
-        lstm_states = torch.zeros(1, args["num_instances"] * 2, policy.LSTM.hidden_size, requires_grad=False), torch.zeros(1, args["num_instances"] * 2, policy.LSTM.hidden_size,
+        lstm_states = torch.zeros(1, args["N"] * 2, policy.LSTM.hidden_size, requires_grad=False), torch.zeros(1, args["N"] * 2, policy.LSTM.hidden_size,
                                                                                                                            requires_grad=False)
-        episode_starts = np.ones(args["num_instances"] * 2)
+        episode_starts = np.ones(args["N"] * 2)
 
-        buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, args["num_instances"] * 2, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
+        buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, args["N"] * 2, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
                                GAE_LAMBDA)
 
         init_data = obs, lstm_states, episode_starts
@@ -101,13 +101,13 @@ async def RolloutWorker(args):
 
             end = time.time()
 
-            fps = (N_STEPS * args["num_instances"] * 2) / (end - start)
+            fps = (N_STEPS * args["N"] * 2) / (end - start)
             print("FPS: {}".format(fps), end="\r")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--num_instances', default=1, type=int)
+    parser.add_argument('-N', default=1, type=int)
     parser.add_argument('--device', default="cpu", type=str)
 
     hyper_params = vars(parser.parse_args())
