@@ -88,19 +88,18 @@ class AsyncEnv(gym.Env):
         self.observation_space = self.result_queue.get()
         self.action_space = self.result_queue.get()
 
-        # self.result_queue.put((None, None, None, None))
+        self.result_queue.put((None, None, None, None))
 
     def reset(self):
-        # _, _, _, _ = self.result_queue.get()
+        _, _, _, _ = self.result_queue.get()
         self.work_queue.put((0, None))
         obs = self.result_queue.get()
-        # self.work_queue.put((1, self._dummy_action))
+        self.work_queue.put((1, self._dummy_action))
         return obs
 
     def step(self, action):
-        # obs, reward, done, info = self.result_queue.get()
-        self.work_queue.put((1, action))
         obs, reward, done, info = self.result_queue.get()
+        self.work_queue.put((1, action))
         if done:
             obs = self.reset()
         return obs, reward, done, info
