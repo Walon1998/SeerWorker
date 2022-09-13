@@ -31,7 +31,8 @@ async def update_policy(session, url, policy):
 
 async def send_rollout(session, url, data):
     data = compress_pickle.dumps(data, compression="gzip")
-    async with session.post(url + "/Data", data=data) as resp:
+    headers = {'Content-Encoding': 'gzip'}
+    async with session.post(url + "/Data", data=data, headers=headers) as resp:
         assert resp.status == 200
 
 
