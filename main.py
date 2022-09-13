@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import gzip
 import io
+import time
 
 import aiohttp
 import compress_pickle
@@ -34,7 +35,7 @@ async def send_rollout(session, url, data):
         assert resp.status == 200
 
 
-async def collect_rollout_cpu(args, policy, env, buffer, init_data):
+async def collect_rollout_cpu(policy, env, buffer, init_data):
     obs, lstm_states, episode_starts = init_data
 
     for _ in range(N_STEPS):
@@ -91,14 +92,21 @@ async def RolloutWorker(args):
         init_data = obs, lstm_states, episode_starts
 
         while True:
-            rollout, init_data = await collect_rollout_cpu(args, policy, env, buffer, init_data)
+            start = time.time()
+
+            rollout, init_data = await collect_rollout_cpu(policy, env, buffer, init_data)
             tasks = [asyncio.ensure_future(update_policy(session, url, policy)), asyncio.ensure_future(send_rollout(session, url, rollout))]
             await asyncio.gather(*tasks)
+
+            end = time.time()
+
+            fps = (N_STEPS * args["num_instances"] * 2) / (end - start)
+            print("FPS: {}".format(fps), end="\r")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--num_instances', default=1, type=int)
+    parser.add_argument('--num_instances', default=5, type=int)
     parser.add_argument('--device', default="cpu", type=str)
 
     hyper_params = vars(parser.parse_args())
