@@ -77,7 +77,6 @@ async def RolloutWorker(args):
 
         policy = SeerNetwork()
         policy.eval()
-        await update_policy(session, url, policy)
 
         env = MultiEnv(args["num_instances"])
         env = NormalizeReward(env, gamma=GAMMA)
@@ -92,6 +91,7 @@ async def RolloutWorker(args):
 
         init_data = obs, lstm_states, episode_starts
 
+        await update_policy(session, url, policy)
         while True:
             start = time.time()
 
@@ -107,7 +107,7 @@ async def RolloutWorker(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--num_instances', default=5, type=int)
+    parser.add_argument('--num_instances', default=1, type=int)
     parser.add_argument('--device', default="cpu", type=str)
 
     hyper_params = vars(parser.parse_args())
