@@ -90,6 +90,64 @@ async def collect_rollout_cpu(policy, env, buffer, init_data):
     return rollout, (obs, lstm_states, episode_starts)
 
 
+async def collect_rollout_gpu(policy, env, buffer, init_data):
+    obs, lstm_states, episode_starts = init_data
+
+    last_obs_cpu = obs.to("cpu", non_blocking=True)
+    last_obs_gpu = obs.to("cuda", non_blocking=True)
+
+    last_episode_starts_cpu = episode_starts.to("cpu", non_blocking=True)
+    last_episode_starts_gpu = episode_starts.to("cuda", non_blocking=True)
+
+    lstm_states_gpu = lstm_states[0].to("cuda", non_blocking=True), lstm_states[1].to("cuda", non_blocking=True)
+    last_lstm_states_0_cpu = lstm_states[0].to("cpu", non_blocking=True)
+    last_lstm_states_1_cpu = lstm_states[1].to("cpu", non_blocking=True)
+
+    for _ in range(N_STEPS):
+        torch.cuda.synchronize(device="cuda")
+
+        with torch.no_grad():
+            actions_gpu, values_gpu, log_probs_gpu, lstm_states_gpu = policy(last_obs_gpu, lstm_states_gpu, last_episode_starts_gpu, False)
+
+        actions_cpu = actions_gpu.to("cpu", non_blocking=True)
+        values_cpu = values_gpu.to("cpu", non_blocking=True)
+        log_probs_cpu = log_probs_gpu.to("cpu", non_blocking=True)
+
+        torch.cuda.synchronize(device="cuda")
+
+        actions_cpu = actions_cpu.numpy()
+
+        new_obs_cpu, rewards_cpu, episode_starts_cpu, infos = env.step(actions_cpu)
+
+        new_obs_gpu = torch.as_tensor(new_obs_cpu, dtype=torch.float32).to("cuda", non_blocking=True)
+        episode_starts_gpu = torch.as_tensor(episode_starts_cpu, dtype=torch.float32).to("cuda", non_blocking=True)
+        lstm_states_0_cpu = lstm_states[0].to("cpu", non_blocking=True)
+        lstm_states_1_cpu = lstm_states[1].to("cpu", non_blocking=True)
+
+        buffer.add(last_obs_cpu.numpy(), actions_cpu, rewards_cpu, last_episode_starts_cpu.numpy(), values_cpu.numpy().ravel(), log_probs_cpu.numpy(), last_lstm_states_0_cpu.numpy(),
+                   last_lstm_states_1_cpu.numpy())
+
+        last_obs_gpu = new_obs_gpu
+        last_obs_cpu = new_obs_cpu
+
+        last_episode_starts_gpu = episode_starts_gpu
+        last_episode_starts_cpu = episode_starts_cpu
+
+        last_lstm_states_0_cpu = lstm_states_0_cpu
+        last_lstm_states_1_cpu = lstm_states_1_cpu
+
+    assert buffer.is_full()
+
+    with torch.no_grad():
+        last_values = policy.predict_value(new_obs_gpu, lstm_states, last_episode_starts_gpu)
+    buffer.compute_returns_and_advantage(last_values.to("cpu").numpy().ravel(), last_episode_starts_cpu.numpy())
+
+    rollout = buffer.get_samples()
+    buffer.reset()
+
+    return rollout, (last_obs_cpu, (last_lstm_states_0_cpu, last_lstm_states_1_cpu), last_episode_starts_cpu,)
+
+
 async def RolloutWorker(args):
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0, connect=60, sock_connect=60, sock_read=60)) as session:
         url = 'http://{host}:{port}'.format(host=HOST, port=PORT)
@@ -118,7 +176,13 @@ async def RolloutWorker(args):
         while True:
             start = time.time()
 
-            rollout, init_data = await collect_rollout_cpu(policy, env, buffer, init_data)
+            if args["device"] == "cpu":
+                rollout, init_data = await collect_rollout_cpu(policy, env, buffer, init_data)
+            elif args["device"] == "cuda":
+                rollout, init_data = await collect_rollout_cpu(policy, env, buffer, init_data)
+            else:
+                exit(-1)
+
             tasks = [asyncio.ensure_future(update_policy(session, url, policy)), asyncio.ensure_future(send_rollout(session, url, rollout, version))]
             if random.random() < 0.1:
                 tasks.append(asyncio.ensure_future(put_reward_mean_var(session, url, env.return_rms.mean, env.return_rms.var)))
@@ -133,8 +197,9 @@ async def RolloutWorker(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-N', default=1, type=int)
-    parser.add_argument('--device', default="cpu", type=str)
+    parser.add_argument('-N', default=5, type=int)
+    parser.add_argument('--device', default="cuda", type=str)
+    parser.add_argument('--device_old', default="cpu", type=str)
 
     hyper_params = vars(parser.parse_args())
 
