@@ -3,6 +3,7 @@ import asyncio
 import glob
 import gzip
 import io
+import math
 import os
 import pickle
 import random
@@ -18,7 +19,7 @@ from SeerPPO import SeerNetwork, RolloutBuffer
 
 from Env.MulitEnv import MultiEnv
 from Env.NormalizeReward import NormalizeReward
-from Env.PastEnv import download_models, past_model_downloader
+from Env.PastEnv import download_models, past_model_downloader, PastEnv
 from contants import GAMMA, HOST, PORT, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA
 
 
@@ -45,13 +46,14 @@ async def put_reward_mean_var(session, url, mean, var):
         assert resp.status == 200
 
 
-async def update_policy(session, url, policy):
+async def update_policy(session, url, policy, device):
     async with session.get(url + "/Weights") as resp:
         assert resp.status == 200
         data, version = compress_pickle.loads(await resp.read(), compression="gzip")
-        data = torch.load(io.BytesIO(data))
+        data = torch.load(io.BytesIO(data), map_location=device)
         policy.load_state_dict(data)
         policy.eval()
+        policy.to(device)
         return version
 
 
@@ -94,7 +96,7 @@ async def collect_rollout_cpu(policy, env, buffer, init_data):
     return rollout, (obs, lstm_states, episode_starts)
 
 
-async def collect_rollout_gpu(policy, env, buffer, init_data):
+async def collect_rollout_cuda(policy, env, buffer, init_data):
     obs, lstm_states, episode_starts = init_data
 
     last_obs_cpu = obs.to("cpu", non_blocking=True)
@@ -163,38 +165,37 @@ async def RolloutWorker(args):
         p = Process(target=past_model_downloader, args=(url,))
         p.start()
 
-
         policy = SeerNetwork()
+        policy.to(args["device"])
         policy.eval()
 
         mean, var = await get_reward_mean_var(session, url)
-        env = MultiEnv(args["N"])
-        env = NormalizeReward(env, mean, var, gamma=GAMMA)
+        env = PastEnv(args["N"], max(int(math.floor(args["N"] * 0.2)), 1), mean, var, GAMMA, args["device_old"], url)
 
         obs = env.reset()
-        lstm_states = torch.zeros(1, args["N"] * 2, policy.LSTM.hidden_size, requires_grad=False), torch.zeros(1, args["N"] * 2, policy.LSTM.hidden_size,
-                                                                                                               requires_grad=False)
-        episode_starts = np.ones(args["N"] * 2)
+        lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
+                                                                                                              requires_grad=False)
+        episode_starts = np.ones(env.num_envs)
 
-        buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, args["N"] * 2, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
+        buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
                                GAE_LAMBDA)
 
         init_data = obs, lstm_states, episode_starts
 
-        version = await update_policy(session, url, policy)
+        version = await update_policy(session, url, policy, args["device"])
         while True:
             start = time.time()
 
             if args["device"] == "cpu":
                 rollout, init_data = await collect_rollout_cpu(policy, env, buffer, init_data)
             elif args["device"] == "cuda":
-                rollout, init_data = await collect_rollout_cpu(policy, env, buffer, init_data)
+                rollout, init_data = await collect_rollout_cuda(policy, env, buffer, init_data)
             else:
                 exit(-1)
 
-            tasks = [asyncio.ensure_future(update_policy(session, url, policy)), asyncio.ensure_future(send_rollout(session, url, rollout, version))]
+            tasks = [asyncio.ensure_future(update_policy(session, url, policy, args["device"])), asyncio.ensure_future(send_rollout(session, url, rollout, version))]
             if random.random() < 0.1:
-                tasks.append(asyncio.ensure_future(put_reward_mean_var(session, url, env.return_rms.mean, env.return_rms.var)))
+                tasks.append(asyncio.ensure_future(put_reward_mean_var(session, url, env.env.return_rms.mean, env.env.return_rms.var)))
             res = await asyncio.gather(*tasks)
             version = res[0]
 
