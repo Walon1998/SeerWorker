@@ -23,14 +23,15 @@ async def check_connection(session, url):
 async def update_policy(session, url, policy):
     async with session.get(url + "/Weights") as resp:
         assert resp.status == 200
-        data = gzip.decompress(await resp.read())
+        data, version = compress_pickle.loads(await resp.read(), compression="gzip")
         data = torch.load(io.BytesIO(data))
         policy.load_state_dict(data)
         policy.eval()
+        return version
 
 
-async def send_rollout(session, url, data):
-    data = compress_pickle.dumps(data, compression="gzip")
+async def send_rollout(session, url, data, version):
+    data = compress_pickle.dumps((data, version), compression="gzip")
     headers = {'Content-Encoding': 'gzip'}
     async with session.post(url + "/Data", data=data, headers=headers) as resp:
         assert resp.status == 200
@@ -83,7 +84,7 @@ async def RolloutWorker(args):
 
         obs = env.reset()
         lstm_states = torch.zeros(1, args["N"] * 2, policy.LSTM.hidden_size, requires_grad=False), torch.zeros(1, args["N"] * 2, policy.LSTM.hidden_size,
-                                                                                                                           requires_grad=False)
+                                                                                                               requires_grad=False)
         episode_starts = np.ones(args["N"] * 2)
 
         buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, args["N"] * 2, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
@@ -91,13 +92,14 @@ async def RolloutWorker(args):
 
         init_data = obs, lstm_states, episode_starts
 
-        await update_policy(session, url, policy)
+        version = await update_policy(session, url, policy)
         while True:
             start = time.time()
 
             rollout, init_data = await collect_rollout_cpu(policy, env, buffer, init_data)
-            tasks = [asyncio.ensure_future(update_policy(session, url, policy)), asyncio.ensure_future(send_rollout(session, url, rollout))]
-            await asyncio.gather(*tasks)
+            tasks = [asyncio.ensure_future(update_policy(session, url, policy)), asyncio.ensure_future(send_rollout(session, url, rollout, version))]
+            res = await asyncio.gather(*tasks)
+            version = res[0]
 
             end = time.time()
 
