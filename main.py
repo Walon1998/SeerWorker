@@ -1,11 +1,14 @@
 import argparse
 import asyncio
+import glob
 import gzip
 import io
+import os
 import pickle
 import random
 import struct
 import time
+from multiprocessing import Process
 
 import aiohttp
 import compress_pickle
@@ -15,6 +18,7 @@ from SeerPPO import SeerNetwork, RolloutBuffer
 
 from Env.MulitEnv import MultiEnv
 from Env.NormalizeReward import NormalizeReward
+from Env.PastEnv import download_models, past_model_downloader
 from contants import GAMMA, HOST, PORT, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA
 
 
@@ -155,6 +159,11 @@ async def RolloutWorker(args):
         await check_connection(session, url)
         print("Connection successful!")
 
+        await download_models(session, url)
+        p = Process(target=past_model_downloader, args=(url,))
+        p.start()
+
+
         policy = SeerNetwork()
         policy.eval()
 
@@ -197,8 +206,8 @@ async def RolloutWorker(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-N', default=5, type=int)
-    parser.add_argument('--device', default="cuda", type=str)
+    parser.add_argument('-N', default=1, type=int)
+    parser.add_argument('--device', default="cpu", type=str)
     parser.add_argument('--device_old', default="cpu", type=str)
 
     hyper_params = vars(parser.parse_args())

@@ -1,8 +1,41 @@
+import asyncio
+import glob
+import os
+import time
 from multiprocessing import Queue, Process
 
+import aiohttp
 import gym
 import numpy as np
+from tqdm import tqdm
+
 from Env.MulitEnv import MultiEnv
+
+
+async def download_models(session, url, disable=False):
+    print("Downloading new models!")
+    local_files = [os.path.basename(x) for x in glob.glob("./Models/*.pt")]
+    async with session.get(url + "/pastmodels") as resp:
+        assert resp.status == 200
+        files = await resp.read()
+        files = files.decode('ascii').split(",")
+        file_to_get = set(files) - set(local_files)
+        for f in tqdm(file_to_get, disable=disable):
+            async with session.get(url + "/Models/{f}".format(f=f)) as resp2:
+                assert resp2.status == 200
+                with open("./Models/{f}".format(f=f), "wb") as newfile:
+                    newfile.write(await resp2.read())
+
+
+async def past_model_downloader_async(url):
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0, connect=60, sock_connect=60, sock_read=60)) as session:
+        while True:
+            time.sleep(5 * 60)
+            await download_models(session, url, disable=True)
+
+
+def past_model_downloader(url):
+    asyncio.run(past_model_downloader_async(url))
 
 
 def past_worker(work_queue, result_queue, model_load_queue):
