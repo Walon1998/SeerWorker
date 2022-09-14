@@ -3,8 +3,10 @@ from typing import Any, Tuple
 import numpy as np
 from rlgym.utils import common_values, ObsBuilder
 from rlgym.utils.gamestates import PlayerData, GameState
+from numba import jit
 
 
+@jit(nopython=True, fastmath=True)
 def get_distance(array_0: np.ndarray, array_1: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     # assert array_0.shape[0] == 3
     # assert array_1.shape[0] == 3
@@ -16,6 +18,7 @@ def get_distance(array_0: np.ndarray, array_1: np.ndarray) -> Tuple[np.ndarray, 
     return diff, np.array(norm, dtype=np.float32).reshape(1)
 
 
+@jit(nopython=True, fastmath=True)
 def get_speed(array: np.ndarray):
     speed = np.linalg.norm(array)
 
@@ -24,6 +27,7 @@ def get_speed(array: np.ndarray):
     return np.array(speed, dtype=np.float32).reshape(1), np.array(is_super_sonic, dtype=np.float32).reshape(1)
 
 
+@jit(nopython=True, fastmath=True)
 def impute_features(player_car_state: np.ndarray, opponent_car_data: np.ndarray, pads, ball_data: np.ndarray, prev_action_enc: np.ndarray):
     # assert x_train.shape[0] == input_features_replay
 
@@ -90,6 +94,7 @@ def impute_features(player_car_state: np.ndarray, opponent_car_data: np.ndarray,
     return result
 
 
+# @jit(nopython=True, fastmath=True)
 def _encode_player(player: PlayerData, inverted: bool, demo_timer: float):
     if inverted:
         player_car = player.inverted_car_data
@@ -120,6 +125,7 @@ def _encode_player(player: PlayerData, inverted: bool, demo_timer: float):
     return array
 
 
+# @jit(nopython=True, fastmath=True)
 def _encode_ball(ball):
     state = np.empty(9, dtype=np.float32)
 
@@ -138,6 +144,7 @@ def _encode_ball(ball):
     return state
 
 
+@jit(nopython=True, fastmath=True)
 def get_encoded_action(action: np.ndarray) -> np.ndarray:
     # throttle, steer, pitch, yaw, roll, jump, boost, handbrake
 
