@@ -2,6 +2,9 @@ import argparse
 import asyncio
 import gzip
 import io
+import pickle
+import random
+import struct
 import time
 
 import aiohttp
@@ -9,14 +12,32 @@ import compress_pickle
 import numpy as np
 import torch
 from SeerPPO import SeerNetwork, RolloutBuffer
-from gym.wrappers import NormalizeReward
 
 from Env.MulitEnv import MultiEnv
+from Env.NormalizeReward import NormalizeReward
 from contants import GAMMA, HOST, PORT, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA
 
 
 async def check_connection(session, url):
     async with session.get(url) as resp:
+        assert resp.status == 200
+
+
+async def get_reward_mean_var(session, url):
+    async with session.get(url + "/mean_var") as resp:
+        assert resp.status == 200
+        bytes = await resp.read()
+        mean = bytes[0:8]
+        var = bytes[8:16]
+        mean, var = struct.unpack('<d', mean), struct.unpack('<d', var)
+        return mean[0], var[0]
+
+
+async def put_reward_mean_var(session, url, mean, var):
+    mean = struct.pack('<d', mean)
+    var = struct.pack('<d', var)
+    data = bytes(mean) + bytes(var)
+    async with session.post(url + "/mean_var", data=data) as resp:
         assert resp.status == 200
 
 
@@ -79,8 +100,9 @@ async def RolloutWorker(args):
         policy = SeerNetwork()
         policy.eval()
 
+        mean, var = await get_reward_mean_var(session, url)
         env = MultiEnv(args["N"])
-        env = NormalizeReward(env, gamma=GAMMA)
+        env = NormalizeReward(env, mean, var, gamma=GAMMA)
 
         obs = env.reset()
         lstm_states = torch.zeros(1, args["N"] * 2, policy.LSTM.hidden_size, requires_grad=False), torch.zeros(1, args["N"] * 2, policy.LSTM.hidden_size,
@@ -98,6 +120,8 @@ async def RolloutWorker(args):
 
             rollout, init_data = await collect_rollout_cpu(policy, env, buffer, init_data)
             tasks = [asyncio.ensure_future(update_policy(session, url, policy)), asyncio.ensure_future(send_rollout(session, url, rollout, version))]
+            if random.random() < 0.1:
+                tasks.append(asyncio.ensure_future(put_reward_mean_var(session, url, env.return_rms.mean, env.return_rms.var)))
             res = await asyncio.gather(*tasks)
             version = res[0]
 
