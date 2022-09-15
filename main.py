@@ -97,61 +97,60 @@ async def collect_rollout_cpu(policy, env, buffer, init_data):
 
 
 async def collect_rollout_cuda(policy, env, buffer, init_data):
-    obs, lstm_states, episode_starts = init_data
+    last_obs, lstm_states, last_episode_start = init_data
 
-    last_obs_cpu = obs.to("cpu", non_blocking=True)
-    last_obs_gpu = obs.to("cuda", non_blocking=True)
-
-    last_episode_starts_cpu = episode_starts.to("cpu", non_blocking=True)
-    last_episode_starts_gpu = episode_starts.to("cuda", non_blocking=True)
-
-    lstm_states_gpu = lstm_states[0].to("cuda", non_blocking=True), lstm_states[1].to("cuda", non_blocking=True)
+    lstm_states = lstm_states[0].to("cuda", non_blocking=True), lstm_states[1].to("cuda", non_blocking=True)
     last_lstm_states_0_cpu = lstm_states[0].to("cpu", non_blocking=True)
     last_lstm_states_1_cpu = lstm_states[1].to("cpu", non_blocking=True)
+
+    last_obs_gpu = torch.as_tensor(last_obs, dtype=torch.float32).to("cuda", non_blocking=True)
+
+    last_episode_starts_gpu = torch.as_tensor(last_episode_start, dtype=torch.float32).to("cuda", non_blocking=True)
 
     for _ in range(N_STEPS):
         torch.cuda.synchronize(device="cuda")
 
         with torch.no_grad():
-            actions_gpu, values_gpu, log_probs_gpu, lstm_states_gpu = policy(last_obs_gpu, lstm_states_gpu, last_episode_starts_gpu, False)
+            action, value, log_probs, lstm_states = policy(last_obs_gpu, lstm_states, last_episode_starts_gpu, False)
 
-        actions_cpu = actions_gpu.to("cpu", non_blocking=True)
-        values_cpu = values_gpu.to("cpu", non_blocking=True)
-        log_probs_cpu = log_probs_gpu.to("cpu", non_blocking=True)
+        action = action.to("cpu", non_blocking=True)
+        value = value.to("cpu", non_blocking=True)
+        log_probs = log_probs.to("cpu", non_blocking=True)
 
         torch.cuda.synchronize(device="cuda")
 
-        actions_cpu = actions_cpu.numpy()
+        action = action.numpy()
 
-        new_obs_cpu, rewards_cpu, episode_starts_cpu, infos = env.step(actions_cpu)
+        new_obs, rewards, dones, infos = env.step(action)
 
-        new_obs_gpu = torch.as_tensor(new_obs_cpu, dtype=torch.float32).to("cuda", non_blocking=True)
-        episode_starts_gpu = torch.as_tensor(episode_starts_cpu, dtype=torch.float32).to("cuda", non_blocking=True)
+        new_obs_gpu = torch.as_tensor(new_obs, dtype=torch.float32).to("cuda", non_blocking=True)
+        dones_gpu = torch.as_tensor(dones, dtype=torch.float32).to("cuda", non_blocking=True)
         lstm_states_0_cpu = lstm_states[0].to("cpu", non_blocking=True)
         lstm_states_1_cpu = lstm_states[1].to("cpu", non_blocking=True)
-
-        buffer.add(last_obs_cpu.numpy(), actions_cpu, rewards_cpu, last_episode_starts_cpu.numpy(), values_cpu.numpy().ravel(), log_probs_cpu.numpy(), last_lstm_states_0_cpu.numpy(),
+        buffer.add(last_obs, action, rewards, last_episode_start, value.numpy().ravel(), log_probs.numpy(), last_lstm_states_0_cpu.numpy(),
                    last_lstm_states_1_cpu.numpy())
 
+        last_obs = new_obs
         last_obs_gpu = new_obs_gpu
-        last_obs_cpu = new_obs_cpu
 
-        last_episode_starts_gpu = episode_starts_gpu
-        last_episode_starts_cpu = episode_starts_cpu
+        last_episode_start = dones
+        last_episode_starts_gpu = dones_gpu
 
         last_lstm_states_0_cpu = lstm_states_0_cpu
         last_lstm_states_1_cpu = lstm_states_1_cpu
 
     assert buffer.is_full()
 
+    torch.cuda.synchronize(device="cuda")
+
     with torch.no_grad():
-        last_values = policy.predict_value(new_obs_gpu, lstm_states, last_episode_starts_gpu)
-    buffer.compute_returns_and_advantage(last_values.to("cpu").numpy().ravel(), last_episode_starts_cpu.numpy())
+        last_values = policy.predict_value(last_obs_gpu, lstm_states, last_episode_starts_gpu)
+    buffer.compute_returns_and_advantage(last_values.to("cpu").numpy().ravel(), dones)
 
     rollout = buffer.get_samples()
     buffer.reset()
 
-    return rollout, (last_obs_cpu, (last_lstm_states_0_cpu, last_lstm_states_1_cpu), last_episode_starts_cpu,)
+    return rollout, (last_obs, lstm_states, last_episode_start)
 
 
 async def RolloutWorker(args):
@@ -170,11 +169,17 @@ async def RolloutWorker(args):
         policy.eval()
 
         mean, var = await get_reward_mean_var(session, url)
-        env = PastEnv(args["N"], max(int(math.floor(args["N"] * 0.2)), 1), mean, var, GAMMA, args["device_old"], url)
+
+        env = None
+        if args["past_models"] == 0.0:
+            env = MultiEnv(args["N"])
+            env = NormalizeReward(env, mean, var, gamma=GAMMA)
+        else:
+            env = PastEnv(args["N"], max(int(math.floor(args["N"] * args["past_models"])), 1), mean, var, GAMMA, args["device_old"], url)
 
         obs = env.reset()
-        lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
-                                                                                                              requires_grad=False)
+        lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False, dtype=torch.float32), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
+                                                                                                                                   requires_grad=False, dtype=torch.float32)
         episode_starts = np.ones(env.num_envs)
 
         buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
@@ -195,21 +200,22 @@ async def RolloutWorker(args):
 
             tasks = [asyncio.ensure_future(update_policy(session, url, policy, args["device"])), asyncio.ensure_future(send_rollout(session, url, rollout, version))]
             if random.random() < 0.1:
-                tasks.append(asyncio.ensure_future(put_reward_mean_var(session, url, env.env.return_rms.mean, env.env.return_rms.var)))
+                tasks.append(asyncio.ensure_future(put_reward_mean_var(session, url, env.return_rms.mean, env.return_rms.var)))
             res = await asyncio.gather(*tasks)
             version = res[0]
 
             end = time.time()
 
-            fps = (N_STEPS * args["N"] * 2) / (end - start)
+            fps = (N_STEPS * env.num_envs) / (end - start)
             print("FPS: {}".format(fps), end="\r")
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-N', default=1, type=int)
-    parser.add_argument('--device', default="cpu", type=str)
+    parser.add_argument('-N', default=5, type=int)
+    parser.add_argument('--device', default="cuda", type=str)
     parser.add_argument('--device_old', default="cpu", type=str)
+    parser.add_argument('--past_models', default=0.2, type=float)
 
     hyper_params = vars(parser.parse_args())
 

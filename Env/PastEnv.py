@@ -18,7 +18,6 @@ from Env.NormalizeReward import NormalizeReward
 
 
 async def download_models(session, url, disable=False):
-    print("Downloading new models!")
     local_files = [os.path.basename(x) for x in glob.glob("./Models/*.pt")]
     async with session.get(url + "/pastmodels") as resp:
         assert resp.status == 200
@@ -54,7 +53,7 @@ def choose_model(past_models):
 def past_worker(work_queue, result_queue, batch_size, device, url):
     session = requests.Session()
     past_models = get_past_models(session, url)
-    lstm_state = torch.zeros(1, batch_size, 512, device=device, requires_grad=False), torch.zeros(1, batch_size, 512, device=device, requires_grad=False)
+    lstm_state = torch.zeros(1, batch_size, 512, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, 512, device=device, requires_grad=False, dtype=torch.float32)
     policy = SeerNetwork()
     policy.load_state_dict(torch.load(choose_model(past_models)))
     policy.to(device)
@@ -78,7 +77,8 @@ def past_worker(work_queue, result_queue, batch_size, device, url):
         if counter % 5_000 == 0:
             past_models = get_past_models(session, url)
             policy.load_state_dict(torch.load(choose_model(past_models), map_location=device))
-            lstm_state = torch.zeros(1, batch_size, 512, device=device, requires_grad=False), torch.zeros(1, batch_size, 512, device=device, requires_grad=False)
+            lstm_state = torch.zeros(1, batch_size, 512, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, 512, device=device, requires_grad=False,
+                                                                                                                               dtype=torch.float32)
 
 
 class PastEnv(gym.Env):
