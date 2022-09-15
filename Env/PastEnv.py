@@ -1,6 +1,8 @@
 import asyncio
 import glob
 import os
+import pickle
+import random
 import time
 from multiprocessing import Queue, Process
 
@@ -43,11 +45,15 @@ def past_model_downloader(url):
 
 
 def get_past_models(session, url):
-    return ["2.pt"]  # TODO
+    respone = session.get(url + "/pastopponent")
+    assert respone.status_code == 200
+    data = pickle.loads(respone.content)
+    return data
 
 
 def choose_model(past_models):
-    return "./Models/" + past_models[0]  # TODO
+    f = random.choice(past_models)
+    return "./Models/" + f
 
 
 def past_worker(work_queue, result_queue, batch_size, device, url):
