@@ -107,6 +107,8 @@ class PastEnv(gym.Env):
         self.action_space = self.env.action_space
         self.observation_space = self.env.observation_space
 
+        self.return_rms = self.env.return_rms
+
         self.work_queue = Queue()
         self.result_queue = Queue()
         p = Process(target=past_worker, args=(self.work_queue, self.result_queue, self.old_instances, device, url))
