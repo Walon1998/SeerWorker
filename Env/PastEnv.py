@@ -34,7 +34,7 @@ async def download_models(session, url, disable=False):
 async def past_model_downloader_async(url):
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0, connect=60, sock_connect=60, sock_read=60)) as session:
         while True:
-            time.sleep(5 * 60)
+            time.sleep(30)
             await download_models(session, url, disable=True)
 
 
