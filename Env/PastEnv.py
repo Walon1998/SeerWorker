@@ -98,6 +98,8 @@ class PastEnv(gym.Env):
         self.old_instances = old_instances
 
         assert self.num_instances >= self.old_instances
+        assert self.num_instances > 0
+        assert self.old_instances > 0
 
         self.obs_shape = (self.num_instances * 2, 159)
         self.reward_shape = (self.num_instances * 2)

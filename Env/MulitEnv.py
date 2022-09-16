@@ -13,6 +13,8 @@ class MultiEnv(gym.Env):
 
         self.num_instances = num_instances
 
+        assert self.num_instances > 0
+
         self.obs_shape = (self.num_instances * 2, 159)
         self.reward_shape = (self.num_instances * 2)
 

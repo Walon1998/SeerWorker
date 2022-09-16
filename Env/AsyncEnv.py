@@ -78,7 +78,7 @@ class AsyncEnv(gym.Env):
         self.result_queue = Queue()
         self.work_queue = Queue()
 
-        dummy_action_single = [2.0, 2.0, 2.0, 1.0, 0.0, 1.0, 0.0]
+        dummy_action_single = [2.0, 2.0, 2.0, 1.0, 0.0, 1.0, 0.0] # Vollgas
         self._dummy_action = np.array([dummy_action_single, dummy_action_single], dtype=np.float32)
         replays = glob.glob("./Replays/*.npz")
 
