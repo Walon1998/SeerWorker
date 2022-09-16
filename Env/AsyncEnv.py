@@ -31,7 +31,7 @@ def worker(work_queue, result_queue, files):
                      gravity=1,
                      boost_consumption=1,
                      terminal_conditions=[TimeoutCondition(512), GoalScoredCondition()],
-                     reward_fn=DefaultReward(),
+                     reward_fn=SeerReward(),
                      obs_builder=SeerObs(),
                      action_parser=SeerAction(),
                      state_setter=WeightedSampleSetter(
