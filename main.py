@@ -20,7 +20,7 @@ from SeerPPO import SeerNetwork, RolloutBuffer
 from Env.MulitEnv import MultiEnv
 from Env.NormalizeReward import NormalizeReward
 from Env.PastEnv import download_models, past_model_downloader, PastEnv
-from contants import GAMMA, HOST, PORT, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA
+from contants import GAMMA, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA, PAST_MODELS
 
 
 async def check_connection(session, url):
@@ -155,7 +155,7 @@ async def collect_rollout_cuda(policy, env, buffer, init_data):
 
 async def RolloutWorker(args):
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0, connect=60, sock_connect=60, sock_read=60)) as session:
-        url = 'http://{host}:{port}'.format(host=HOST, port=PORT)
+        url = 'http://{host}:{port}'.format(host=args["host"], port=["port"])
         print("Connecting to: ", url)
         await check_connection(session, url)
         print("Connection successful!")
@@ -171,11 +171,11 @@ async def RolloutWorker(args):
         mean, var = await get_reward_mean_var(session, url)
 
         env = None
-        if args["past_models"] == 0.0:
+        if PAST_MODELS == 0.0:
             env = MultiEnv(args["N"])
             env = NormalizeReward(env, mean, var, gamma=GAMMA)
         else:
-            env = PastEnv(args["N"], max(int(math.floor(args["N"] * args["past_models"])), 1), mean, var, GAMMA, args["device_old"], url)
+            env = PastEnv(args["N"], max(int(math.floor(args["N"] * PAST_MODELS)), 1), mean, var, GAMMA, args["device_old"], url)
 
         obs = env.reset()
         lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False, dtype=torch.float32), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
@@ -212,10 +212,11 @@ async def RolloutWorker(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-N', default=5, type=int)
+    parser.add_argument('-N', default=1, type=int)
     parser.add_argument('--device', default="cuda", type=str)
-    parser.add_argument('--device_old', default="cpu", type=str)
-    parser.add_argument('--past_models', default=0.2, type=float)
+    parser.add_argument('--device_old', default="cuda", type=str)
+    parser.add_argument('--host', type=str)
+    parser.add_argument('--port', type=int)
 
     hyper_params = vars(parser.parse_args())
 
