@@ -27,6 +27,8 @@ async def download_models(session, url, disable=False):
         files = files.decode('ascii').split(",")
         file_to_get = set(files) - set(local_files)
         for f in tqdm(file_to_get, disable=disable):
+            if f == '':
+                continue
             async with session.get(url + "/Models/{f}".format(f=f)) as resp2:
                 assert resp2.status == 200
                 with open("./Models/{f}".format(f=f), "wb") as newfile:
