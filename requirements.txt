@@ -5,7 +5,8 @@ torch
 gym
 rlgym
 rlgym-tools
-stable_baselines3
 compress_pickle
 aiohttp
 SeerPPO
+tqdm
+scipy
