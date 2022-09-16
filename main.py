@@ -155,7 +155,7 @@ async def collect_rollout_cuda(policy, env, buffer, init_data):
 
 async def RolloutWorker(args):
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0, connect=60, sock_connect=60, sock_read=60)) as session:
-        url = 'http://{host}:{port}'.format(host=args["host"], port=["port"])
+        url = 'http://{host}:{port}'.format(host=args["host"], port=args["port"])
         print("Connecting to: ", url)
         await check_connection(session, url)
         print("Connection successful!")
@@ -215,8 +215,8 @@ if __name__ == '__main__':
     parser.add_argument('-N', default=1, type=int)
     parser.add_argument('--device', default="cuda", type=str)
     parser.add_argument('--device_old', default="cuda", type=str)
-    parser.add_argument('--host', type=str)
-    parser.add_argument('--port', type=int)
+    parser.add_argument('--host', type=str, required=True)
+    parser.add_argument('--port', type=int, required=True)
 
     hyper_params = vars(parser.parse_args())
 
