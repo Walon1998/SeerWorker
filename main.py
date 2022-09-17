@@ -38,6 +38,7 @@ async def communication_worker_async(url, work_queue, result_queue):
         state_dict, state_dict_version = await get_new_state_dict(session, url)
 
         result_queue.put((state_dict, state_dict_version))
+        result_queue.put((state_dict, state_dict_version))
 
         while True:
             rollout, rollout_version, mean, var, = work_queue.get()
