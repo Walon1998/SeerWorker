@@ -232,7 +232,6 @@ def RolloutWorker(args):
 
         state_dict, state_dict_version = result_queue.get()
         policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"])
-        print(policy.state_dict())
 
         if args["device"] == "cpu":
             rollout, init_data = collect_rollout_cpu(policy, env, buffer, init_data)
