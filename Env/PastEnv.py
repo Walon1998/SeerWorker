@@ -54,8 +54,11 @@ def get_past_models(session, url):
 
 
 def choose_model(past_models):
-    f = random.choice(past_models)
-    return "./Models/" + f
+    while True:
+        f = random.choice(past_models)
+        filename = "./Models/" + f
+        if os.path.isfile(filename):
+            return filename
 
 
 def past_worker(work_queue, result_queue, batch_size, device, url):
@@ -122,6 +125,9 @@ class PastEnv(gym.Env):
         self.work_queue = Queue()
         self.result_queue = Queue()
         p = Process(target=past_worker, args=(self.work_queue, self.result_queue, self.old_instances, device, url))
+        p.start()
+
+        p = Process(target=past_model_downloader, args=(url,))
         p.start()
 
     def reset(self):

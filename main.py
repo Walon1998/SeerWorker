@@ -9,7 +9,7 @@ import pickle
 import random
 import struct
 import time
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 
 import aiohttp
 import compress_pickle
@@ -19,8 +19,41 @@ from SeerPPO import SeerNetwork, RolloutBuffer
 
 from Env.MulitEnv import MultiEnv
 from Env.NormalizeReward import NormalizeReward
-from Env.PastEnv import download_models, past_model_downloader, PastEnv
+from Env.PastEnv import download_models, PastEnv
 from contants import GAMMA, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA, PAST_MODELS
+
+
+async def communication_worker_async(url, work_queue, result_queue):
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0, connect=60, sock_connect=60, sock_read=60)) as session:
+        print("Connecting to: ", url)
+        await check_connection(session, url)
+        print("Connection successful!")
+
+        await download_models(session, url)
+
+        mean_var = await get_reward_mean_var(session, url)
+
+        result_queue.put(mean_var)
+
+        state_dict, state_dict_version = await get_new_state_dict(session, url)
+
+        result_queue.put((state_dict, state_dict_version))
+
+        while True:
+            rollout, rollout_version, mean, var, = work_queue.get()
+
+            tasks = [
+                asyncio.ensure_future(send_rollout(session, url, rollout, rollout_version)),
+                asyncio.ensure_future(get_new_state_dict(session, url)),
+                asyncio.ensure_future(put_reward_mean_var(session, url, mean, var))
+            ]
+            res = await asyncio.gather(*tasks)
+
+            result_queue.put(res[1])
+
+
+def communication_worker(url, work_queue, result_queue):
+    asyncio.run(communication_worker_async(url, work_queue, result_queue))
 
 
 async def check_connection(session, url):
@@ -46,15 +79,22 @@ async def put_reward_mean_var(session, url, mean, var):
         assert resp.status == 200
 
 
-async def update_policy(session, url, policy, device):
+async def get_new_state_dict(session, url):
     async with session.get(url + "/Weights") as resp:
         assert resp.status == 200
         data, version = compress_pickle.loads(await resp.read(), compression="gzip")
-        data = torch.load(io.BytesIO(data), map_location=device)
-        policy.load_state_dict(data)
-        policy.eval()
-        policy.to(device)
-        return version
+        data = torch.load(io.BytesIO(data), map_location="cpu")
+        return data, version
+
+
+def update_policy(policy, policy_version, state_dict, state_dict_version, device):
+    if policy_version == state_dict_version:
+        return policy_version
+
+    policy.load_state_dict(state_dict)
+    policy.eval()
+    policy.to(device)
+    return state_dict_version
 
 
 async def send_rollout(session, url, data, version):
@@ -64,7 +104,7 @@ async def send_rollout(session, url, data, version):
         assert resp.status == 200
 
 
-async def collect_rollout_cpu(policy, env, buffer, init_data):
+def collect_rollout_cpu(policy, env, buffer, init_data):
     obs, lstm_states, episode_starts = init_data
 
     for _ in range(N_STEPS):
@@ -96,7 +136,7 @@ async def collect_rollout_cpu(policy, env, buffer, init_data):
     return rollout, (obs, lstm_states, episode_starts)
 
 
-async def collect_rollout_cuda(policy, env, buffer, init_data):
+def collect_rollout_cuda(policy, env, buffer, init_data):
     last_obs, lstm_states, last_episode_start = init_data
 
     lstm_states = lstm_states[0].to("cuda", non_blocking=True), lstm_states[1].to("cuda", non_blocking=True)
@@ -153,61 +193,60 @@ async def collect_rollout_cuda(policy, env, buffer, init_data):
     return rollout, (last_obs, lstm_states, last_episode_start)
 
 
-async def RolloutWorker(args):
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0, connect=60, sock_connect=60, sock_read=60)) as session:
-        url = 'http://{host}:{port}'.format(host=args["host"], port=args["port"])
-        print("Connecting to: ", url)
-        await check_connection(session, url)
-        print("Connection successful!")
+def RolloutWorker(args):
+    url = 'http://{host}:{port}'.format(host=args["host"], port=args["port"])
 
-        await download_models(session, url)
-        p = Process(target=past_model_downloader, args=(url,))
-        p.start()
+    policy = SeerNetwork()
+    policy.to(args["device"])
+    policy.eval()
 
-        policy = SeerNetwork()
-        policy.to(args["device"])
-        policy.eval()
+    work_queue = Queue()
+    result_queue = Queue()
 
-        mean, var = await get_reward_mean_var(session, url)
+    p = Process(target=communication_worker, args=(url, work_queue, result_queue))
+    p.start()
 
-        env = None
-        if PAST_MODELS == 0.0:
-            env = MultiEnv(args["N"])
-            env = NormalizeReward(env, mean, var, gamma=GAMMA)
+    mean, var = result_queue.get()
+
+    env = None
+    if PAST_MODELS == 0.0:
+        env = MultiEnv(args["N"])
+        env = NormalizeReward(env, mean, var, gamma=GAMMA)
+    else:
+        env = PastEnv(args["N"], max(int(math.floor(args["N"] * PAST_MODELS)), 1), mean, var, GAMMA, args["device_old"], url)
+
+    obs = env.reset()
+    lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False, dtype=torch.float32), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
+                                                                                                                               requires_grad=False, dtype=torch.float32)
+    episode_starts = np.ones(env.num_envs)
+
+    buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
+                           GAE_LAMBDA)
+
+    init_data = obs, lstm_states, episode_starts
+
+    policy_version = -1
+
+    while True:
+        start = time.time()
+
+        state_dict, state_dict_version = result_queue.get()
+        policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"])
+        print(policy.state_dict())
+
+        if args["device"] == "cpu":
+            rollout, init_data = collect_rollout_cpu(policy, env, buffer, init_data)
+        elif args["device"] == "cuda":
+            rollout, init_data = collect_rollout_cuda(policy, env, buffer, init_data)
         else:
-            env = PastEnv(args["N"], max(int(math.floor(args["N"] * PAST_MODELS)), 1), mean, var, GAMMA, args["device_old"], url)
+            exit(-1)
 
-        obs = env.reset()
-        lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False, dtype=torch.float32), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
-                                                                                                                                   requires_grad=False, dtype=torch.float32)
-        episode_starts = np.ones(env.num_envs)
+        work_queue.put((rollout, policy_version, env.return_rms.mean, env.return_rms.var))
 
-        buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
-                               GAE_LAMBDA)
+        end = time.time()
 
-        init_data = obs, lstm_states, episode_starts
-
-        version = await update_policy(session, url, policy, args["device"])
-        while True:
-            start = time.time()
-
-            if args["device"] == "cpu":
-                rollout, init_data = await collect_rollout_cpu(policy, env, buffer, init_data)
-            elif args["device"] == "cuda":
-                rollout, init_data = await collect_rollout_cuda(policy, env, buffer, init_data)
-            else:
-                exit(-1)
-
-            tasks = [asyncio.ensure_future(update_policy(session, url, policy, args["device"])), asyncio.ensure_future(send_rollout(session, url, rollout, version))]
-            if random.random() < 0.1:
-                tasks.append(asyncio.ensure_future(put_reward_mean_var(session, url, env.return_rms.mean, env.return_rms.var)))
-            res = await asyncio.gather(*tasks)
-            version = res[0]
-
-            end = time.time()
-
-            fps = (N_STEPS * env.num_envs) / (end - start)
-            print("FPS: {}".format(fps), end="\r")
+        fps = (N_STEPS * env.num_envs) / (end - start)
+        print("FPS: {}".format(fps), end="\r")
 
 
 if __name__ == '__main__':
@@ -220,4 +259,4 @@ if __name__ == '__main__':
 
     hyper_params = vars(parser.parse_args())
 
-    asyncio.run(RolloutWorker(hyper_params))
+    RolloutWorker(hyper_params)
