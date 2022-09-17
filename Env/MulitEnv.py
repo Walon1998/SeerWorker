@@ -31,20 +31,30 @@ class MultiEnv(gym.Env):
 
     def reset(self):
         obs = np.empty(self.obs_shape, dtype=np.float32)
+
+        for i in self.instances:
+            i.reset_put()
+
         counter = 0
         for i in self.instances:
-            obs[counter: counter + 2, :] = i.reset()
+            obs[counter: counter + 2, :] = i.reset_get()
             counter += 2
         return obs
 
     def step(self, action):
+
+        counter = 0
+        for i in self.instances:
+            i.step_put(action[counter: counter + 2, :])
+            counter += 2
+
         obs_array = np.empty(self.obs_shape, dtype=np.float32)
         reward_array = np.empty(self.reward_shape, dtype=np.float32)
         done_array = np.empty(self.reward_shape, dtype=np.bool)
 
         counter = 0
         for i in self.instances:
-            obs, rew, done, info = i.step(action[counter: counter + 2, :])
+            obs, rew, done, info = i.step_get()
             obs_array[counter: counter + 2, :] = obs
             reward_array[counter: counter + 2] = rew
             done_array[counter: counter + 2] = done

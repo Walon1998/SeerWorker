@@ -31,7 +31,7 @@ def worker(work_queue, result_queue, files):
                      gravity=1,
                      boost_consumption=1,
                      terminal_conditions=[TimeoutCondition(512), GoalScoredCondition()],
-                     reward_fn=SeerReward(),
+                     reward_fn=DefaultReward(),
                      obs_builder=SeerObs(),
                      action_parser=SeerAction(),
                      state_setter=WeightedSampleSetter(
@@ -67,10 +67,19 @@ def worker(work_queue, result_queue, files):
         if id == 0:
             result_queue.put(env.reset())
         elif id == 1:
-            result_queue.put(env.step(action))
+            obs, reward, done, info = env.step(action)
+            if done:
+                obs = env.reset()
+            result_queue.put((obs, reward, done, info))
 
 
 class AsyncEnv(gym.Env):
+
+    def reset(self):
+        return NotImplementedError()
+
+    def step(self, action):
+        return NotImplementedError()
 
     def __init__(self):
         super(AsyncEnv, self).__init__()
@@ -78,8 +87,8 @@ class AsyncEnv(gym.Env):
         self.result_queue = Queue()
         self.work_queue = Queue()
 
-        dummy_action_single = [2.0, 2.0, 2.0, 1.0, 0.0, 1.0, 0.0] # Vollgas
-        self._dummy_action = np.array([dummy_action_single, dummy_action_single], dtype=np.float32)
+        # dummy_action_single = [2.0, 2.0, 2.0, 1.0, 0.0, 1.0, 0.0] # Vollgas
+        # self._dummy_action = np.array([dummy_action_single, dummy_action_single], dtype=np.float32)
         replays = glob.glob("./Replays/*.npz")
 
         p = Process(target=worker, args=(self.work_queue, self.result_queue, replays))
@@ -88,21 +97,19 @@ class AsyncEnv(gym.Env):
         self.observation_space = self.result_queue.get()
         self.action_space = self.result_queue.get()
 
-        self.result_queue.put((None, None, None, None))
+        # self.result_queue.put((None, None, None, None))
 
-    def reset(self):
-        _, _, _, _ = self.result_queue.get()
+    def reset_put(self):
         self.work_queue.put((0, None))
-        obs = self.result_queue.get()
-        self.work_queue.put((1, self._dummy_action))
-        return obs
 
-    def step(self, action):
-        obs, reward, done, info = self.result_queue.get()
+    def reset_get(self):
+        return self.result_queue.get()
+
+    def step_put(self, action):
         self.work_queue.put((1, action))
-        if done:
-            obs = self.reset()
-        return obs, reward, done, info
+
+    def step_get(self):
+        return self.result_queue.get()
 
     def render(self, mode="human"):
         pass
