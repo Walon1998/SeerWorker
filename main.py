@@ -129,7 +129,7 @@ def collect_rollout_cpu(policy, env, buffer, init_data):
     assert buffer.is_full()
 
     with torch.no_grad():
-        last_values = policy.predict_value(torch.as_tensor(obs, dtype=torch.float32), lstm_states, torch.as_tensor(episode_starts, dtype=torch.float32))
+        last_values = policy.predict_value(torch.as_tensor(obs, dtype=torch.float32), lstm_states)
     buffer.compute_returns_and_advantage(last_values.numpy().ravel(), episode_starts)
 
     rollout = buffer.get_samples(env.get_monitor_data())
@@ -186,7 +186,7 @@ def collect_rollout_cuda(policy, env, buffer, init_data):
     torch.cuda.synchronize(device="cuda")
 
     with torch.no_grad():
-        last_values = policy.predict_value(last_obs_gpu, lstm_states, last_episode_starts_gpu)
+        last_values = policy.predict_value(last_obs_gpu)
     buffer.compute_returns_and_advantage(last_values.to("cpu").numpy().ravel(), dones)
 
     rollout = buffer.get_samples(env.get_monitor_data())
