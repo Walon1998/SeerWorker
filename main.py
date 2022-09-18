@@ -132,7 +132,7 @@ def collect_rollout_cpu(policy, env, buffer, init_data):
         last_values = policy.predict_value(torch.as_tensor(obs, dtype=torch.float32), lstm_states, torch.as_tensor(episode_starts, dtype=torch.float32))
     buffer.compute_returns_and_advantage(last_values.numpy().ravel(), episode_starts)
 
-    rollout = buffer.get_samples(env.get_mean_returns())
+    rollout = buffer.get_samples(env.get_monitor_data())
     buffer.reset()
 
     return rollout, (obs, lstm_states, episode_starts)
@@ -189,7 +189,7 @@ def collect_rollout_cuda(policy, env, buffer, init_data):
         last_values = policy.predict_value(last_obs_gpu, lstm_states, last_episode_starts_gpu)
     buffer.compute_returns_and_advantage(last_values.to("cpu").numpy().ravel(), dones)
 
-    rollout = buffer.get_samples(env.get_mean_returns())
+    rollout = buffer.get_samples(env.get_monitor_data())
     buffer.reset()
 
     return rollout, (last_obs, lstm_states, last_episode_start)
@@ -253,7 +253,7 @@ def RolloutWorker(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-N', default=5, type=int)
+    parser.add_argument('-N', default=1, type=int)
     parser.add_argument('--device', default="cuda", type=str)
     parser.add_argument('--device_old', default="cuda", type=str)
     parser.add_argument('--host', type=str, required=True)

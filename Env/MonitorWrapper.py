@@ -7,11 +7,13 @@ class MonitorWrapper(Wrapper):
         super(MonitorWrapper, self).__init__(env)
 
         self.episode_returns = None
+        self.episode_lengths = None
         self.buf = []
 
     def reset(self):
         obs = self.env.reset()
         self.episode_returns = np.zeros(self.num_envs, dtype=np.float32)
+        self.episode_lengths = np.zeros(self.num_envs, dtype=np.int32)
         self.buf = []
         return obs
 
@@ -19,21 +21,18 @@ class MonitorWrapper(Wrapper):
         obs, rewards, dones, infos = self.env.step(action)
 
         self.episode_returns += rewards
+        self.episode_lengths += 1
 
         for i in range(dones.shape[0]):
             if dones[i]:
-                self.buf.append(self.episode_returns[i])
+                data = self.episode_returns[i], self.episode_lengths[i]
+                self.buf.append(data)
                 self.episode_returns[i] = 0
+                self.episode_lengths[i] = 0
 
         return obs, rewards, dones, infos
 
-    def get_mean_returns(self):
-
-        if len(self.buf) == 0:
-            return 0.0
-
-        reward_mean = np.mean(self.buf)
-
+    def get_monitor_data(self):
+        data = self.buf
         self.buf = []
-
-        return reward_mean
+        return data

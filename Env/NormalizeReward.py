@@ -78,5 +78,5 @@ class NormalizeReward(gym.core.Wrapper):
         self.return_rms.update(self.returns)
         return rews / np.sqrt(self.return_rms.var + self.epsilon)
 
-    def get_mean_returns(self):
-        return self.env.get_mean_returns()
+    def get_monitor_data(self):
+        return self.env.get_monitor_data()
