@@ -33,6 +33,6 @@ class MonitorWrapper(Wrapper):
         return obs, rewards, dones, infos
 
     def get_monitor_data(self):
-        data = self.buf
+        data = np.array([i[0] for i in self.buf], dtype=np.float32), np.array([i[1] for i in self.buf], dtype=np.float32)
         self.buf = []
         return data
