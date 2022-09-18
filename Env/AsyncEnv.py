@@ -9,13 +9,15 @@ import rlgym
 from gym.spaces import Box
 from rlgym.gamelaunch import LaunchPreference
 from rlgym.utils.reward_functions import DefaultReward
+from rlgym.utils.reward_functions.common_rewards import LiuDistancePlayerToBallReward
 from rlgym.utils.state_setters import DefaultState, RandomState
-from rlgym.utils.terminal_conditions.common_conditions import TimeoutCondition, GoalScoredCondition
+from rlgym.utils.terminal_conditions.common_conditions import GoalScoredCondition, NoTouchTimeoutCondition, TimeoutCondition
 from rlgym_tools.extra_state_setters.goalie_state import GoaliePracticeState
 from rlgym_tools.extra_state_setters.hoops_setter import HoopsLikeSetter
 from rlgym_tools.extra_state_setters.wall_state import WallPracticeState
 from rlgym_tools.extra_state_setters.weighted_sample_setter import WeightedSampleSetter
 
+from Env.DelayWrapper import DelayWrapper
 from RLGym_Functions.action import SeerAction
 from RLGym_Functions.observation import SeerObs
 from RLGym_Functions.reward import SeerReward
@@ -59,6 +61,8 @@ def worker(work_queue, result_queue, files):
                      raise_on_crash=False,
                      auto_minimize=True)
 
+    env = DelayWrapper(env)
+
     result_queue.put(env.observation_space)
     result_queue.put(env.action_space)
 
@@ -67,10 +71,7 @@ def worker(work_queue, result_queue, files):
         if id == 0:
             result_queue.put(env.reset())
         elif id == 1:
-            obs, reward, done, info = env.step(action)
-            if done:
-                obs = env.reset()
-            result_queue.put((obs, reward, done, info))
+            result_queue.put(env.step(action))
 
 
 class AsyncEnv(gym.Env):
