@@ -10,7 +10,7 @@ from gym.spaces import Box
 from rlgym.gamelaunch import LaunchPreference
 from rlgym.utils.reward_functions import DefaultReward
 from rlgym.utils.state_setters import DefaultState, RandomState
-from rlgym.utils.terminal_conditions.common_conditions import TimeoutCondition, GoalScoredCondition
+from rlgym.utils.terminal_conditions.common_conditions import TimeoutCondition, GoalScoredCondition, NoTouchTimeoutCondition
 from rlgym_tools.extra_state_setters.goalie_state import GoaliePracticeState
 from rlgym_tools.extra_state_setters.hoops_setter import HoopsLikeSetter
 from rlgym_tools.extra_state_setters.wall_state import WallPracticeState
