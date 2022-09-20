@@ -13,6 +13,7 @@ import requests
 import torch
 from tqdm import tqdm
 
+from Env.MonitorWrapper import MonitorWrapper
 from Env.MulitEnv import MultiEnv
 from SeerPPO import SeerNetwork, RolloutBuffer
 
@@ -64,8 +65,9 @@ def choose_model(past_models):
 def past_worker(work_queue, result_queue, batch_size, device, url):
     session = requests.Session()
     past_models = get_past_models(session, url)
-    lstm_state = torch.zeros(1, batch_size, 512, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, 512, device=device, requires_grad=False, dtype=torch.float32)
     policy = SeerNetwork()
+    lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device,
+                                                                                                                                           requires_grad=False, dtype=torch.float32)
     policy.load_state_dict(torch.load(choose_model(past_models)))
     policy.to(device)
 
@@ -116,6 +118,7 @@ class PastEnv(gym.Env):
         self.mask_new_opponent = np.logical_not(self.mask_old_opponents)
 
         self.env = MultiEnv(num_instances)
+        self.env = MonitorWrapper(self.env)
         self.env = NormalizeReward(self.env, mean, var, gamma=gamma)
         self.action_space = self.env.action_space
         self.observation_space = self.env.observation_space
@@ -162,3 +165,6 @@ class PastEnv(gym.Env):
 
     def render(self, mode="human"):
         pass
+
+    def get_monitor_data(self):
+        return self.env.get_monitor_data()
