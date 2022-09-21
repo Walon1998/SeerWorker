@@ -96,7 +96,7 @@ def past_worker(work_queue, result_queue, batch_size, device, url):
 
 class PastEnv(gym.Env):
 
-    def __init__(self, num_instances, old_instances, mean, var, gamma, device, url):
+    def __init__(self, num_instances, old_instances, mean, var, gamma, device, url, force_paging):
         super(PastEnv, self).__init__()
 
         self.num_instances = num_instances
@@ -117,7 +117,7 @@ class PastEnv(gym.Env):
 
         self.mask_new_opponent = np.logical_not(self.mask_old_opponents)
 
-        self.env = MultiEnv(num_instances)
+        self.env = MultiEnv(num_instances, force_paging)
         self.env = MonitorWrapper(self.env)
         self.env = NormalizeReward(self.env, mean, var, gamma=gamma)
         self.action_space = self.env.action_space

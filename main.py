@@ -212,11 +212,11 @@ def RolloutWorker(args):
 
     env = None
     if PAST_MODELS == 0.0:
-        env = MultiEnv(args["N"])
+        env = MultiEnv(args["N"], args["force_paging"])
         env = MonitorWrapper(env)
         env = NormalizeReward(env, mean, var, gamma=GAMMA)
     else:
-        env = PastEnv(args["N"], max(int(math.floor(args["N"] * PAST_MODELS)), 1), mean, var, GAMMA, args["device_old"], url)
+        env = PastEnv(args["N"], max(int(math.floor(args["N"] * PAST_MODELS)), 1), mean, var, GAMMA, args["device_old"], url, args["force_paging"])
 
     obs = env.reset()
     lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False, dtype=torch.float32), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
@@ -258,6 +258,7 @@ if __name__ == '__main__':
     parser.add_argument('--device_old', default="cuda", type=str)
     parser.add_argument('--host', type=str, required=True)
     parser.add_argument('--port', type=int, required=True)
+    parser.add_argument('--force_paging', default=True, type=bool)
 
     hyper_params = vars(parser.parse_args())
 

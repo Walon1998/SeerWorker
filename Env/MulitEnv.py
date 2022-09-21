@@ -8,7 +8,7 @@ from Env.AsyncEnv import AsyncEnv
 
 class MultiEnv(gym.Env):
 
-    def __init__(self, num_instances):
+    def __init__(self, num_instances, force_paging):
         super(MultiEnv, self).__init__()
 
         self.num_instances = num_instances
@@ -21,7 +21,7 @@ class MultiEnv(gym.Env):
         self.instances = []
 
         for i in range(num_instances):
-            self.instances.append(AsyncEnv())
+            self.instances.append(AsyncEnv(force_paging))
 
         self.observation_space = self.instances[0].observation_space
         self.action_space = self.instances[0].action_space
