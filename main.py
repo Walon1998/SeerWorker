@@ -221,7 +221,7 @@ def RolloutWorker(args):
     obs = env.reset()
     lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False, dtype=torch.float32), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
                                                                                                                                requires_grad=False, dtype=torch.float32)
-    episode_starts = np.ones(env.num_envs)
+    episode_starts = np.ones(env.num_envs, dtype=np.float32)
 
     buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
                            GAE_LAMBDA)
