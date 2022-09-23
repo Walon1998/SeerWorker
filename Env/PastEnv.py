@@ -68,7 +68,11 @@ def past_worker(work_queue, result_queue, batch_size, device, url):
     policy = SeerNetwork()
     lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device,
                                                                                                                                            requires_grad=False, dtype=torch.float32)
-    policy.load_state_dict(torch.load(choose_model(past_models)))
+    try:
+        policy.load_state_dict(torch.load(choose_model(past_models)))
+    except:
+        pass
+
     policy.to(device)
 
     counter = 0
