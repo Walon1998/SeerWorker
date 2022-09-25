@@ -10,3 +10,4 @@ aiohttp
 SeerPPO
 tqdm
 scipy
+shared-memory-dict
