@@ -16,6 +16,7 @@ import compress_pickle
 import numpy as np
 import torch
 from SeerPPO import SeerNetwork, RolloutBuffer
+from shared_memory_dict import SharedMemoryDict
 
 from Env.MonitorWrapper import MonitorWrapper
 from Env.MulitEnv import MultiEnv
@@ -138,7 +139,7 @@ def collect_rollout_cpu(policy, env, buffer, init_data):
     return rollout, (obs, lstm_states, episode_starts)
 
 
-def collect_rollout_cuda(policy, env, buffer, init_data):
+def collect_rollout_cuda(policy, env, buffer, init_data, smd_config):
     last_obs, lstm_states, last_episode_start = init_data
 
     lstm_states = lstm_states[0].to("cuda", non_blocking=True), lstm_states[1].to("cuda", non_blocking=True)
@@ -150,6 +151,9 @@ def collect_rollout_cuda(policy, env, buffer, init_data):
     last_episode_starts_gpu = torch.as_tensor(last_episode_start, dtype=torch.float32).to("cuda", non_blocking=True)
 
     for _ in range(N_STEPS):
+        while smd_config["pause"]:
+            time.sleep(0.1)
+
         torch.cuda.synchronize(device="cuda")
 
         with torch.no_grad():
@@ -198,6 +202,9 @@ def collect_rollout_cuda(policy, env, buffer, init_data):
 def RolloutWorker(args):
     url = 'http://{host}:{port}'.format(host=args["host"], port=args["port"])
 
+    smd_config = SharedMemoryDict(name='shared_memory_dict', size=1024)
+    smd_config["pause"] = False
+
     policy = SeerNetwork()
     policy.to(args["device"])
     policy.eval()
@@ -239,7 +246,7 @@ def RolloutWorker(args):
         if args["device"] == "cpu":
             rollout, init_data = collect_rollout_cpu(policy, env, buffer, init_data)
         elif args["device"] == "cuda":
-            rollout, init_data = collect_rollout_cuda(policy, env, buffer, init_data)
+            rollout, init_data = collect_rollout_cuda(policy, env, buffer, init_data, smd_config)
         else:
             exit(-1)
 
