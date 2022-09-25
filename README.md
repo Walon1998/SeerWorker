@@ -17,7 +17,8 @@ If you want to help train Seer, I can provide you with the necessary `host` and 
 ## How to run
 
 1. Open Rocket League and set it to potato quality (lowest resolution, windowed mode, lowest quality settings). Close Rocket Leagua again!
-2. Open a PowerShell as administrator and put `Set-ExecutionPolicy RemoteSigned`
+2. Start BakkesMod!
+3. Open a PowerShell as administrator and put `Set-ExecutionPolicy RemoteSigned`
 4. Clone this repository: `git clone  https://github.com/Walon1998/SeerWorker`
 5. Enter directory: `cd SeerWorker`
 6. Download and extract replays: `replay_downloader.ps1`
