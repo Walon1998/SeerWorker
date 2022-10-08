@@ -16,12 +16,13 @@ import compress_pickle
 import numpy as np
 import torch
 from SeerPPO import SeerNetwork, RolloutBuffer
+from SeerPPO.past_models_download import download_models
 from shared_memory_dict import SharedMemoryDict
 
 from Env.MonitorWrapper import MonitorWrapper
 from Env.MulitEnv import MultiEnv
 from Env.NormalizeReward import NormalizeReward
-from Env.PastEnv import download_models, PastEnv
+from Env.PastEnv import PastEnv
 from contants import GAMMA, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA, PAST_MODELS
 
 
