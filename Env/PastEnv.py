@@ -1,7 +1,6 @@
 import os
 import pickle
 import random
-import time
 from multiprocessing import Queue, Process
 
 import gym
