@@ -3,8 +3,42 @@ import random
 
 import numpy as np
 from rlgym.utils import common_values
-from rlgym.utils.state_setters import StateSetter, DefaultState
+from rlgym.utils.state_setters import StateSetter, DefaultState, RandomState
 from rlgym.utils.state_setters import StateWrapper
+from rlgym_tools.extra_state_setters.goalie_state import GoaliePracticeState
+from rlgym_tools.extra_state_setters.hoops_setter import HoopsLikeSetter
+from rlgym_tools.extra_state_setters.wall_state import WallPracticeState
+from rlgym_tools.extra_state_setters.weighted_sample_setter import WeightedSampleSetter
+
+
+class SeerStateSetter(StateSetter):
+
+    def __init__(self, files):
+        super(SeerStateSetter, self).__init__()
+        self.files = files
+
+        self.r = WeightedSampleSetter(
+            [SeerReplaySetter(files),
+             DefaultState(),
+             GoaliePracticeState(),
+             HoopsLikeSetter(),
+             WallPracticeState(),
+             RandomState(ball_rand_speed=False, cars_rand_speed=False, cars_on_ground=True),
+             RandomState(ball_rand_speed=True, cars_rand_speed=False, cars_on_ground=True),
+             RandomState(ball_rand_speed=True, cars_rand_speed=True, cars_on_ground=False),
+             ]
+            , [0.65,
+               0.2,
+               0.05,
+               0.05,
+               0.05,
+               0.00,
+               0.00,
+               0.00,
+               ])
+
+    def reset(self, state_wrapper: StateWrapper):
+        self.r.reset(state_wrapper)
 
 
 class SeerReplaySetter(StateSetter):

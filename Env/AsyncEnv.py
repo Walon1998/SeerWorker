@@ -8,18 +8,12 @@ from gym import Wrapper, Env
 import rlgym
 from gym.spaces import Box
 from rlgym.gamelaunch import LaunchPreference
-from rlgym.utils.reward_functions import DefaultReward
-from rlgym.utils.state_setters import DefaultState, RandomState
 from rlgym.utils.terminal_conditions.common_conditions import TimeoutCondition, GoalScoredCondition, NoTouchTimeoutCondition
-from rlgym_tools.extra_state_setters.goalie_state import GoaliePracticeState
-from rlgym_tools.extra_state_setters.hoops_setter import HoopsLikeSetter
-from rlgym_tools.extra_state_setters.wall_state import WallPracticeState
-from rlgym_tools.extra_state_setters.weighted_sample_setter import WeightedSampleSetter
 
 from RLGym_Functions.action import SeerAction
 from RLGym_Functions.observation import SeerObs
 from RLGym_Functions.reward import SeerReward
-from RLGym_Functions.state_setter import SeerReplaySetter
+from RLGym_Functions.state_setter import SeerStateSetter
 
 
 def worker(work_queue, result_queue, files, force_paging):
@@ -34,25 +28,7 @@ def worker(work_queue, result_queue, files, force_paging):
                      reward_fn=SeerReward(),
                      obs_builder=SeerObs(),
                      action_parser=SeerAction(),
-                     state_setter=WeightedSampleSetter(
-                         [SeerReplaySetter(files),
-                          DefaultState(),
-                          GoaliePracticeState(),
-                          HoopsLikeSetter(),
-                          WallPracticeState(),
-                          RandomState(ball_rand_speed=False, cars_rand_speed=False, cars_on_ground=True),
-                          RandomState(ball_rand_speed=True, cars_rand_speed=False, cars_on_ground=True),
-                          RandomState(ball_rand_speed=True, cars_rand_speed=True, cars_on_ground=False),
-                          ]
-                         , [0.7,
-                            0.1,
-                            0.05,
-                            0.05,
-                            0.05,
-                            0.01,
-                            0.02,
-                            0.02,
-                            ]),
+                     state_setter=SeerStateSetter(files),
                      launch_preference=LaunchPreference.EPIC,
                      use_injector=True,
                      force_paging=force_paging,
