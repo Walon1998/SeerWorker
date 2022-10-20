@@ -348,11 +348,7 @@ class AnnealRewards(RewardFunction):
 
         frac = (self.count - self.last_transition_step) / (self.next_transition_step - self.last_transition_step)
 
-        a = self.next_reward.get_reward(*args)
-        b = self.last_reward.get_reward(*args)
-        rew = frac * a + (1 - frac) * b
-
-        print(a, b, rew, frac)
+        rew = frac * self.next_reward.get_reward(*args) + (1 - frac) * self.last_reward.get_reward(*args)
 
         if self.count >= self.next_transition_step:
             self._transition(state)
