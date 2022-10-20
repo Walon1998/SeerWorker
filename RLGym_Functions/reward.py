@@ -146,7 +146,7 @@ class SeerReward(RewardFunction):
     def __init__(self):
         super(RewardFunction, self).__init__()
 
-        self.rewards = [GoalScoredReward(0.1),
+        self.rewards = [GoalScoredReward(0.5),
                         DiffReward(SaveBoostReward(), 1.0),
                         SeerTouchBallReward(0.28361335653610786, 0.95, 0.1, 0.013),
                         DemoReward(),
@@ -165,9 +165,9 @@ class SeerReward(RewardFunction):
                         AirReward()]
 
         self.weights = np.array([
-            1.5,  # Goal Scored, Sparse, {0,1-1.5}
+            1.25,  # Goal Scored, Sparse, {0,1-1.5}
             0.1,  # Boost, Sparse, [0,1]
-            0.05,  # Ball Touch, Sparse, [0,2]
+            0.1,  # Ball Touch, Sparse, [0,2]
             0.3,  # Demo, Sparse, {0,1}
             0.0025,  # Distance Ball Player, Cont., [0,1]
             0.0025,  # Distance Ball Goal, Cont., [0,1]
