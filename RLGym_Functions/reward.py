@@ -270,35 +270,38 @@ class SeerReward2(SeerReward):
 
 class AnnealRewards(RewardFunction):
 
-    def __init__(self, r_0, r_1, steps):
+    def __init__(self, r_0, r_1, start, end):
         super(AnnealRewards, self).__init__()
         self.r_0 = r_0
         self.r_1 = r_1
-        self.steps = steps
+        self.start = start
+        self.end = end
+        assert end >= start
+        self.steps = end - start
         self.smd_config = SharedMemoryDict(name='shared_memory_dict', size=1024)
 
     def pre_step(self, state: GameState):
         self.r_1.pre_step(state)
 
-        if self.smd_config["counter"] < self.steps:
+        if self.smd_config["counter"] < self.end:
             self.r_0.pre_step(state)
 
     def reset(self, initial_state: GameState):
         self.r_1.reset(initial_state)
 
-        if self.smd_config["counter"] < self.steps:
+        if self.smd_config["counter"] < self.end:
             self.r_0.reset(initial_state)
 
     def get_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
 
         r_1_reward = self.r_1.get_reward(player, state, previous_action)
 
-        if self.smd_config["counter"] >= self.steps:
+        if self.smd_config["counter"] >= self.end:
             return r_1_reward
 
         r_0_reward = self.r_0.get_reward(player, state, previous_action)
 
-        frac = self.smd_config["counter"] / self.steps
+        frac = (self.smd_config["counter"] - self.start) / self.steps
 
         r = frac * r_1_reward + (1 - frac) * r_0_reward
 

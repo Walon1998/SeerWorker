@@ -31,7 +31,7 @@ def worker(work_queue, result_queue, files, force_paging):
                      gravity=1,
                      boost_consumption=1,
                      terminal_conditions=[NoTouchTimeoutCondition(512), GoalScoredCondition()],
-                     reward_fn=AnnealRewards(SeerReward(), SeerReward2(), 2_500),
+                     reward_fn=AnnealRewards(SeerReward(), SeerReward2(), 20_000, 22_500),
                      obs_builder=SeerObs(),
                      action_parser=SeerAction(),
                      state_setter=WeightedSampleSetter(

@@ -95,7 +95,7 @@ def update_policy(policy, policy_version, state_dict, state_dict_version, device
     if policy_version == state_dict_version:
         return policy_version
 
-    smd_config["counter"] = smd_config["counter"] + 1
+    smd_config["counter"] = state_dict_version
     policy.load_state_dict(state_dict)
     policy.eval()
     policy.to(device)
