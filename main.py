@@ -91,10 +91,11 @@ async def get_new_state_dict(session, url):
         return data, version
 
 
-def update_policy(policy, policy_version, state_dict, state_dict_version, device):
+def update_policy(policy, policy_version, state_dict, state_dict_version, device, smd_config):
     if policy_version == state_dict_version:
         return policy_version
 
+    smd_config["counter"] = smd_config["counter"] + 1
     policy.load_state_dict(state_dict)
     policy.eval()
     policy.to(device)
@@ -140,7 +141,7 @@ def collect_rollout_cpu(policy, env, buffer, init_data):
     return rollout, (obs, lstm_states, episode_starts)
 
 
-def collect_rollout_cuda(policy, env, buffer, init_data, smd_config):
+def collect_rollout_cuda(policy, env, buffer, init_data):
     last_obs, lstm_states, last_episode_start = init_data
 
     lstm_states = lstm_states[0].to("cuda", non_blocking=True), lstm_states[1].to("cuda", non_blocking=True)
@@ -152,9 +153,6 @@ def collect_rollout_cuda(policy, env, buffer, init_data, smd_config):
     last_episode_starts_gpu = torch.as_tensor(last_episode_start, dtype=torch.float32).to("cuda", non_blocking=True)
 
     for _ in range(N_STEPS):
-        while smd_config["pause"]:
-            time.sleep(0.1)
-
         torch.cuda.synchronize(device="cuda")
 
         with torch.no_grad():
@@ -204,7 +202,7 @@ def RolloutWorker(args):
     url = 'http://{host}:{port}'.format(host=args["host"], port=args["port"])
 
     smd_config = SharedMemoryDict(name='shared_memory_dict', size=1024)
-    smd_config["pause"] = False
+    smd_config["counter"] = 0
 
     policy = SeerNetwork()
     policy.to(args["device"])
@@ -242,12 +240,12 @@ def RolloutWorker(args):
         start = time.time()
 
         state_dict, state_dict_version = result_queue.get()
-        policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"])
+        policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"], smd_config)
 
         if args["device"] == "cpu":
             rollout, init_data = collect_rollout_cpu(policy, env, buffer, init_data)
         elif args["device"] == "cuda":
-            rollout, init_data = collect_rollout_cuda(policy, env, buffer, init_data, smd_config)
+            rollout, init_data = collect_rollout_cuda(policy, env, buffer, init_data)
         else:
             exit(-1)
 
