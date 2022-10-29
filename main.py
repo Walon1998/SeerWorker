@@ -91,11 +91,10 @@ async def get_new_state_dict(session, url):
         return data, version
 
 
-def update_policy(policy, policy_version, state_dict, state_dict_version, device, smd_config):
+def update_policy(policy, policy_version, state_dict, state_dict_version, device):
     if policy_version == state_dict_version:
         return policy_version
 
-    smd_config["counter"] = state_dict_version
     policy.load_state_dict(state_dict)
     policy.eval()
     policy.to(device)
@@ -240,7 +239,8 @@ def RolloutWorker(args):
         start = time.time()
 
         state_dict, state_dict_version = result_queue.get()
-        policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"], smd_config)
+        policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"])
+        smd_config["counter"] = policy_version
 
         if args["device"] == "cpu":
             rollout, init_data = collect_rollout_cpu(policy, env, buffer, init_data)
