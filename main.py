@@ -23,7 +23,7 @@ from Env.MonitorWrapper import MonitorWrapper
 from Env.MulitEnv import MultiEnv
 from Env.NormalizeReward import NormalizeReward
 from Env.PastEnv import PastEnv
-from contants import GAMMA, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA, PAST_MODELS
+from contants import LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA, PAST_MODELS, GAMMA_Annealer
 
 
 async def communication_worker_async(url, work_queue, result_queue):
@@ -219,17 +219,17 @@ def RolloutWorker(args):
     if PAST_MODELS == 0.0:
         env = MultiEnv(args["N"], args["force_paging"])
         env = MonitorWrapper(env)
-        env = NormalizeReward(env, mean, var, gamma=GAMMA)
+        env = NormalizeReward(env, mean, var, gamma=GAMMA_Annealer.get())
     else:
-        env = PastEnv(args["N"], max(int(math.floor(args["N"] * PAST_MODELS)), 1), mean, var, GAMMA, args["device_old"], url, args["force_paging"])
+        env = PastEnv(args["N"], max(int(math.floor(args["N"] * PAST_MODELS)), 1), mean, var, GAMMA_Annealer.get(), args["device_old"], url, args["force_paging"])
 
     obs = env.reset()
     lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False, dtype=torch.float32), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
                                                                                                                                requires_grad=False, dtype=torch.float32)
     episode_starts = np.ones(env.num_envs, dtype=np.float32)
 
-    buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
-                           GAE_LAMBDA)
+    # buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
+    #                        GAE_LAMBDA)
 
     init_data = obs, lstm_states, episode_starts
 
@@ -241,6 +241,9 @@ def RolloutWorker(args):
         state_dict, state_dict_version = result_queue.get()
         policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"])
         smd_config["counter"] = policy_version
+
+        buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA_Annealer.get(),
+                               GAE_LAMBDA)
 
         if args["device"] == "cpu":
             rollout, init_data = collect_rollout_cpu(policy, env, buffer, init_data)
