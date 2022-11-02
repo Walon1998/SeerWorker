@@ -3,8 +3,6 @@ import gym
 from numba import int32, float32, jit, float64
 from numba.experimental import jitclass
 
-from contants import GAMMA_Annealer
-
 spec = [
     ('mean', float64),
     ('var', float64),
@@ -64,13 +62,12 @@ class NormalizeReward(gym.core.Wrapper):
         self.returns = np.zeros(self.num_envs)
         self.gamma = gamma
         self.epsilon = epsilon
-        self.GAMMA_Annealer = GAMMA_Annealer
 
     def step(self, action):
         obs, rews, dones, infos = self.env.step(action)
         if not self.is_vector_env:
             rews = np.array([rews])
-        self.returns = self.returns * self.GAMMA_Annealer.get() + rews
+        self.returns = self.returns * self.gamma + rews
         rews = self.normalize(rews)
         self.returns[dones] = 0.0
         if not self.is_vector_env:
