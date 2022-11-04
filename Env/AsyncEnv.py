@@ -16,26 +16,26 @@ from rlgym_tools.extra_state_setters.hoops_setter import HoopsLikeSetter
 from rlgym_tools.extra_state_setters.wall_state import WallPracticeState
 from rlgym_tools.extra_state_setters.weighted_sample_setter import WeightedSampleSetter
 
-from RLGym_Functions.action import SeerAction
-from RLGym_Functions.observation import SeerObs
-from RLGym_Functions.reward import SeerReward, SeerReward2, AnnealRewards
-from RLGym_Functions.state_setter import SeerReplaySetter
+from RLGym_Functions.action import SeerActionv2
+from RLGym_Functions.observation import SeerObsv2
+from RLGym_Functions.reward import SeerRewardv2
+from RLGym_Functions.state_setter import SeerReplaySetterv2
 
 
-def worker(work_queue, result_queue, files, force_paging):
+def worker(work_queue, result_queue, force_paging, team_size):
     env = rlgym.make(game_speed=100,
                      tick_skip=8,
                      spawn_opponents=True,
                      self_play=None,
-                     team_size=1,
+                     team_size=team_size,
                      gravity=1,
                      boost_consumption=1,
                      terminal_conditions=[NoTouchTimeoutCondition(512), GoalScoredCondition()],
-                     reward_fn=SeerReward2(),
-                     obs_builder=SeerObs(),
-                     action_parser=SeerAction(),
+                     reward_fn=SeerRewardv2(),
+                     obs_builder=SeerObsv2(team_size),
+                     action_parser=SeerActionv2(),
                      state_setter=WeightedSampleSetter(
-                         [SeerReplaySetter(files),
+                         [SeerReplaySetterv2("./Replays/"),
                           DefaultState(),
                           GoaliePracticeState(),
                           HoopsLikeSetter(),
@@ -81,7 +81,7 @@ class AsyncEnv(gym.Env):
     def step(self, action):
         return NotImplementedError()
 
-    def __init__(self, force_paging):
+    def __init__(self, team_size, force_paging):
         super(AsyncEnv, self).__init__()
 
         self.result_queue = Queue()
@@ -89,9 +89,8 @@ class AsyncEnv(gym.Env):
 
         # dummy_action_single = [2.0, 2.0, 2.0, 1.0, 0.0, 1.0, 0.0] # Vollgas
         # self._dummy_action = np.array([dummy_action_single, dummy_action_single], dtype=np.float32)
-        replays = glob.glob("./Replays/*.npz")
 
-        p = Process(target=worker, args=(self.work_queue, self.result_queue, replays, force_paging))
+        p = Process(target=worker, args=(self.work_queue, self.result_queue, force_paging, team_size))
         p.start()
 
         self.observation_space = self.result_queue.get()
