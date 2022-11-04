@@ -8,25 +8,26 @@ from Env.AsyncEnv import AsyncEnv
 
 class MultiEnv(gym.Env):
 
-    def __init__(self, num_instances, force_paging):
+    def __init__(self, num_instances, team_size, force_paging):
         super(MultiEnv, self).__init__()
 
         self.num_instances = num_instances
+        self.team_size = team_size
 
         assert self.num_instances > 0
 
-        self.obs_shape = (self.num_instances * 2, 159)
-        self.reward_shape = (self.num_instances * 2)
+        self.obs_shape = (self.num_instances * 2 * team_size, 159)
+        self.reward_shape = (self.num_instances * 2 * team_size)
 
         self.instances = []
 
         for i in range(num_instances):
-            self.instances.append(AsyncEnv(force_paging))
+            self.instances.append(AsyncEnv(team_size, force_paging))
 
         self.observation_space = self.instances[0].observation_space
         self.action_space = self.instances[0].action_space
 
-        self.num_envs = self.num_instances * 2
+        self.num_envs = self.num_instances * 2 * team_size
         self.is_vector_env = True
 
     def reset(self):
@@ -37,16 +38,16 @@ class MultiEnv(gym.Env):
 
         counter = 0
         for i in self.instances:
-            obs[counter: counter + 2, :] = i.reset_get()
-            counter += 2
+            obs[counter: counter + 2 * self.team_size, :] = i.reset_get()
+            counter += 2 * self.team_size
         return obs
 
     def step(self, action):
 
         counter = 0
         for i in self.instances:
-            i.step_put(action[counter: counter + 2, :])
-            counter += 2
+            i.step_put(action[counter: counter + 2 * self.team_size, :])
+            counter += 2 * self.team_size
 
         obs_array = np.empty(self.obs_shape, dtype=np.float32)
         reward_array = np.empty(self.reward_shape, dtype=np.float32)
@@ -55,10 +56,10 @@ class MultiEnv(gym.Env):
         counter = 0
         for i in self.instances:
             obs, rew, done, info = i.step_get()
-            obs_array[counter: counter + 2, :] = obs
-            reward_array[counter: counter + 2] = rew
-            done_array[counter: counter + 2] = done
-            counter += 2
+            obs_array[counter: counter + 2 * self.team_size, :] = obs
+            reward_array[counter: counter + 2 * self.team_size] = rew
+            done_array[counter: counter + 2 * self.team_size] = done
+            counter += 2 * self.team_size
 
         return obs_array, reward_array, done_array, None
 
