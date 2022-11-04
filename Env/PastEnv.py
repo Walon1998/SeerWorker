@@ -11,7 +11,7 @@ from SeerPPO.past_models_download import start_past_model_downloader
 
 from Env.MonitorWrapper import MonitorWrapper
 from Env.MulitEnv import MultiEnv
-from SeerPPO import SeerNetwork
+from SeerPPO import SeerNetworkv2
 
 from Env.NormalizeReward import NormalizeReward
 
@@ -34,7 +34,7 @@ def choose_model(past_models):
 def past_worker(work_queue, result_queue, batch_size, device, url):
     session = requests.Session()
     past_models = get_past_models(session, url)
-    policy = SeerNetwork()
+    policy = SeerNetworkv2()
     lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device,
                                                                                                                                            requires_grad=False, dtype=torch.float32)
     try:
@@ -69,28 +69,35 @@ def past_worker(work_queue, result_queue, batch_size, device, url):
 
 class PastEnv(gym.Env):
 
-    def __init__(self, num_instances, old_instances, mean, var, gamma, device, url, force_paging):
+    def __init__(self, num_instances, old_instances, team_size, mean, var, gamma, device, url, force_paging):
         super(PastEnv, self).__init__()
 
         self.num_instances = num_instances
         self.old_instances = old_instances
+        self.team_size = team_size
 
         assert self.num_instances >= self.old_instances
         assert self.num_instances > 0
         assert self.old_instances > 0
 
-        self.obs_shape = (self.num_instances * 2, 159)
-        self.reward_shape = (self.num_instances * 2)
+        self.obs_shape = (self.num_instances * 2 * self.team_size, 159)
+        self.reward_shape = (self.num_instances * 2 * self.team_size)
 
-        self.num_envs = 2 * self.num_instances - old_instances
+        self.num_envs = (2 * self.num_instances - old_instances) * self.team_size
 
-        self.mask_old_opponents = np.zeros(2 * self.num_instances, dtype=np.bool)
+        self.mask_old_opponents = np.zeros(2 * self.num_instances * self.team_size, dtype=np.bool)
+
+        # [[0], [1]]
+        # [[0], [0], [1], [1]]
+        # [[0], [0], [0], [1], [1], [1]]
+
         for i in range(self.old_instances):
-            self.mask_old_opponents[2 * i] = True
+            for j in self.team_size:
+                self.mask_old_opponents[self.team_size * 2 * i + j] = True
 
         self.mask_new_opponent = np.logical_not(self.mask_old_opponents)
 
-        self.env = MultiEnv(num_instances, force_paging)
+        self.env = MultiEnv(num_instances, team_size, force_paging)
         self.env = MonitorWrapper(self.env)
         self.env = NormalizeReward(self.env, mean, var, gamma=gamma)
         self.action_space = self.env.action_space
@@ -100,7 +107,7 @@ class PastEnv(gym.Env):
 
         self.work_queue = Queue()
         self.result_queue = Queue()
-        p = Process(target=past_worker, args=(self.work_queue, self.result_queue, self.old_instances, device, url))
+        p = Process(target=past_worker, args=(self.work_queue, self.result_queue, self.old_instances * self.team_size, device, url))
         p.start()
 
         start_past_model_downloader(url)
@@ -111,13 +118,13 @@ class PastEnv(gym.Env):
         obs_old = obs[self.mask_old_opponents]
         obs_new = obs[self.mask_new_opponent]
 
-        self.work_queue.put((obs_old, np.ones(self.old_instances, dtype=np.float32)))
+        self.work_queue.put((obs_old, np.ones(self.old_instances * self.team_size, dtype=np.float32)))
         return obs_new
 
     def step(self, action):
         old_action = self.result_queue.get()
 
-        combined_actions = np.empty([self.num_instances * 2, 7], dtype=np.float32)
+        combined_actions = np.empty([self.num_instances * 2 * self.team_size, 7], dtype=np.float32)
         combined_actions[self.mask_old_opponents] = old_action
         combined_actions[self.mask_new_opponent] = action
         obs, rew, done, info = self.env.step(combined_actions)
