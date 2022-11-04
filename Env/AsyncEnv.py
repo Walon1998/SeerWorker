@@ -18,7 +18,7 @@ from rlgym_tools.extra_state_setters.weighted_sample_setter import WeightedSampl
 
 from RLGym_Functions.action import SeerActionv2
 from RLGym_Functions.observation import SeerObsv2
-from RLGym_Functions.reward import SeerRewardv2
+from RLGym_Functions.reward import SeerRewardv2, DistributeRewardsv2
 from RLGym_Functions.state_setter import SeerReplaySetterv2
 
 
@@ -31,7 +31,7 @@ def worker(work_queue, result_queue, force_paging, team_size):
                      gravity=1,
                      boost_consumption=1,
                      terminal_conditions=[NoTouchTimeoutCondition(512), GoalScoredCondition()],
-                     reward_fn=SeerRewardv2(),
+                     reward_fn=DistributeRewardsv2(SeerRewardv2(), 0.3),
                      obs_builder=SeerObsv2(team_size),
                      action_parser=SeerActionv2(),
                      state_setter=WeightedSampleSetter(
