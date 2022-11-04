@@ -1,3 +1,4 @@
+import glob
 import os.path
 import random
 
@@ -7,75 +8,61 @@ from rlgym.utils.state_setters import StateSetter, DefaultState
 from rlgym.utils.state_setters import StateWrapper
 
 
-class SeerReplaySetter(StateSetter):
-    def __init__(self, files):
+class SeerReplaySetterv2(StateSetter):
+    def __init__(self, dir, team_size):
         super().__init__()
-        self.files = files
+        self.dir = dir
+        self.team_size = team_size
+
+        if self.team_size == 1:
+            dir = os.path.join(dir, "1v1")
+        elif self.team_size == 2:
+            dir = os.path.join(dir, "2v2")
+        elif self.team_size == 3:
+            dir = os.path.join(dir, "3v3")
+        else:
+            raise NotImplementedError
+
+        self.files = glob.glob(os.path.join(dir, "*.npz"))
+
+    def _set_ball(self, ball, ball_array):
+        ball.set_pos(*ball_array[0:3])
+        ball.set_lin_vel(*ball_array[3:6])
+        ball.set_ang_vel(*ball[6:9])
+
+    def _set_car(self, car, car_array):
+        car.set_pos(*car_array[0:3])
+        car.set_lin_vel(*car_array[3:6])
+        car.set_rot(*car_array[6:9])
+        car.set_ang_vel(*car_array[9:12])
+        car.boost = car_array[13] / 100.0
 
     def reset(self, state_wrapper: StateWrapper):
-        """
-        Modifies state_wrapper values to emulate a randomly selected frame from replay.
-
-        :param state_wrapper: StateWrapper object to be modified with desired state values.
-        """
-        # possible kickoff indices are shuffled
-
-        f = random.choice(self.files)
 
         try:
-            array = np.load(f)
-            x_train = random.choice([array["x_train_winner"], array["x_train_looser"]])
-            index = random.choice(range(0, int(x_train.shape[0] * 0.75)))
-            slice = x_train[index]
+            f = random.choice(self.files)
+            array = np.load(f)["data"]
+            index = random.choice(range(0, int(array.shape[0])))
+            slice = array[index]
         except Exception as e:
             print(e, f)
             DefaultState().reset(state_wrapper)
             return
 
-        player_0 = slice[0:16]
-        player_1 = slice[16:32]
-        # boost_pads_timer = x_train[:, 32:66]
-        ball = slice[66:75]
+        self._set_ball(state_wrapper.ball, slice[0:12])
 
-        assert player_0.shape[0] == 16
-        assert player_1.shape[0] == 16
-        assert ball.shape[0] == 9
-
-        player_0_pos = player_0[0:3]
-        player_0_rotation = player_0[3:6]
-        player_0_velocity = player_0[6:9]
-        player_0_ang_velocity = player_0[9:12]
-        # player_0_demo_timer = player_0[:, 12]
-        player_0_boost = player_0[13]
-
-        player_1_pos = player_1[0:3]
-        player_1_rotation = player_1[3:6]
-        player_1_velocity = player_1[6:9]
-        player_1_ang_velocity = player_1[9:12]
-        # player_1_demo_timer = player_1[:, 12]
-        player_1_boost = player_1[13]
-
-        ball_pos = ball[0:3]
-        ball_velocity = ball[3:6]
-        ball_ang_velocity = ball[6:9]
-
-        state_wrapper.ball.set_pos(*ball_pos)
-        state_wrapper.ball.set_lin_vel(*ball_velocity)
-        state_wrapper.ball.set_ang_vel(*ball_ang_velocity)
+        blue_cars = []
+        orange_cars = []
 
         for car in state_wrapper.cars:
-
             if car.team_num == common_values.BLUE_TEAM:
-
-                car.set_pos(*player_0_pos)
-                car.set_lin_vel(*player_0_velocity)
-                car.set_rot(*player_0_rotation)
-                car.set_ang_vel(*player_0_ang_velocity)
-                car.boost = player_0_boost / 100.0
+                blue_cars.append(car)
             else:
+                orange_cars.append(car)
 
-                car.set_pos(*player_1_pos)
-                car.set_lin_vel(*player_1_velocity)
-                car.set_rot(*player_1_rotation)
-                car.set_ang_vel(*player_1_ang_velocity)
-                car.boost = player_1_boost / 100.0
+        start = 12
+        size = 23
+
+        for car in blue_cars + orange_cars:
+            self._set_car(car, slice[start:start + size])
+            start += size
