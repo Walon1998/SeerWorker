@@ -34,7 +34,7 @@ def get_encoded_actionV2(action: np.ndarray) -> np.ndarray:
 
 
 def encode_all_players(player, state, inverted, demo_timers, ball):
-    player_encoding = _encode_player(player, inverted, demo_timers.get(player), ball)
+    player_encoding = _encode_player(player, inverted, demo_timers.get(player.car_id), ball)
 
     same_team = []
     opponent_team = []
@@ -56,7 +56,7 @@ def encode_all_players(player, state, inverted, demo_timers, ball):
 
     encodings = [player_encoding]
     for p in same_team + opponent_team:
-        encodings.append(_encode_player(p, inverted, demo_timers.get(p), ball))
+        encodings.append(_encode_player(p, inverted, demo_timers.get(p.car_id), ball))
 
     return encodings
 
@@ -187,7 +187,7 @@ class SeerObsV2(ObsBuilder):
         self.boost_pads_timers = np.zeros(34, dtype=np.float32)
         self.demo_timers = {}
         for p in initial_state.players:
-            self.demo_timers.update({p: 0})
+            self.demo_timers.update({p.car_id: 0})
 
     def pre_step(self, state: GameState):
 
@@ -230,6 +230,6 @@ class SeerObsV2(ObsBuilder):
         for p in state.players:
 
             if p.is_demoed:
-                self.demo_timers.update({p: self.demo_timers.get(p) + self.time_diff_tick})
+                self.demo_timers.update({p.car_id: self.demo_timers.get(p.car_id) + self.time_diff_tick})
             else:
-                self.demo_timers.update({p: 0})
+                self.demo_timers.update({p.car_id: 0})
