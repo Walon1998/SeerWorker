@@ -6,7 +6,7 @@ from rlgym.utils.action_parsers import ActionParser
 from rlgym.utils.gamestates import GameState
 
 
-class SeerActionv2(ActionParser):
+class SeerActionV2(ActionParser):
     def __init__(self, flip_bins=3, throttle_bins=3, roll_bins=3):
         super(ActionParser).__init__()
         assert flip_bins % 2 == 1, "n_bins must be an odd number"

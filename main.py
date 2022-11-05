@@ -15,7 +15,7 @@ import aiohttp
 import compress_pickle
 import numpy as np
 import torch
-from SeerPPO import SeerNetwork, RolloutBuffer, SeerNetworkv2
+from SeerPPO import SeerNetwork, RolloutBuffer, SeerNetworkV2
 from SeerPPO.past_models_download import download_models
 from shared_memory_dict import SharedMemoryDict
 
@@ -200,7 +200,7 @@ def collect_rollout_cuda(policy, env, buffer, init_data):
 def RolloutWorker(args):
     url = 'http://{host}:{port}'.format(host=args["host"], port=args["port"])
 
-    policy = SeerNetworkv2()
+    policy = SeerNetworkV2()
     policy.to(args["device"])
     policy.eval()
 

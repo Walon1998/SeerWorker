@@ -8,7 +8,7 @@ from rlgym.utils.state_setters import StateSetter, DefaultState
 from rlgym.utils.state_setters import StateWrapper
 
 
-class SeerReplaySetterv2(StateSetter):
+class SeerReplaySetterV2(StateSetter):
     def __init__(self, dir, team_size):
         super().__init__()
         self.dir = dir

@@ -16,10 +16,10 @@ from rlgym_tools.extra_state_setters.hoops_setter import HoopsLikeSetter
 from rlgym_tools.extra_state_setters.wall_state import WallPracticeState
 from rlgym_tools.extra_state_setters.weighted_sample_setter import WeightedSampleSetter
 
-from RLGym_Functions.action import SeerActionv2
-from RLGym_Functions.observation import SeerObsv2
-from RLGym_Functions.reward import SeerRewardv2, DistributeRewardsv2
-from RLGym_Functions.state_setter import SeerReplaySetterv2
+from RLGym_Functions.action import SeerActionV2
+from RLGym_Functions.observation import SeerObsV2
+from RLGym_Functions.reward import SeerRewardV2, DistributeRewardsV2
+from RLGym_Functions.state_setter import SeerReplaySetterV2
 
 
 def worker(work_queue, result_queue, force_paging, team_size):
@@ -31,11 +31,11 @@ def worker(work_queue, result_queue, force_paging, team_size):
                      gravity=1,
                      boost_consumption=1,
                      terminal_conditions=[NoTouchTimeoutCondition(512), GoalScoredCondition()],
-                     reward_fn=DistributeRewardsv2(SeerRewardv2(), 0.3),
-                     obs_builder=SeerObsv2(team_size),
-                     action_parser=SeerActionv2(),
+                     reward_fn=DistributeRewardsV2(SeerRewardV2(), 0.3),
+                     obs_builder=SeerObsV2(team_size),
+                     action_parser=SeerActionV2(),
                      state_setter=WeightedSampleSetter(
-                         [SeerReplaySetterv2("./Replays/", team_size),
+                         [SeerReplaySetterV2("./Replays/", team_size),
                           DefaultState(),
                           GoaliePracticeState(),
                           HoopsLikeSetter(),

@@ -11,7 +11,7 @@ from SeerPPO.past_models_download import start_past_model_downloader
 
 from Env.MonitorWrapper import MonitorWrapper
 from Env.MulitEnv import MultiEnv, get_obs_size
-from SeerPPO import SeerNetworkv2
+from SeerPPO import SeerNetworkV2
 
 from Env.NormalizeReward import NormalizeReward
 
@@ -34,7 +34,7 @@ def choose_model(past_models):
 def past_worker(work_queue, result_queue, batch_size, device, url):
     session = requests.Session()
     past_models = get_past_models(session, url)
-    policy = SeerNetworkv2()
+    policy = SeerNetworkV2()
     lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device,
                                                                                                                                            requires_grad=False, dtype=torch.float32)
     try:

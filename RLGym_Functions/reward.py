@@ -39,7 +39,7 @@ class ForwardVelocity(RewardFunction):
         return float(np.dot(player.car_data.forward(), vel_norm))
 
 
-class SeerRewardv2(RewardFunction):
+class SeerRewardV2(RewardFunction):
     def __init__(self):
         super(RewardFunction, self).__init__()
 
@@ -97,7 +97,7 @@ class SeerRewardv2(RewardFunction):
         return self.get_reward(player, state, previous_action)
 
 
-class DistributeRewardsv2(RewardFunction):
+class DistributeRewardsV2(RewardFunction):
     """
     Inspired by OpenAI's Dota bot (OpenAI Five).
     Modifies rewards using the formula (1-team_spirit) * own_reward + team_spirit * avg_team_reward - avg_opp_reward

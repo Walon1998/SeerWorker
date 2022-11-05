@@ -2,7 +2,7 @@ import math
 from typing import Any
 
 import numpy as np
-from SeerPPO import get_encoded_actionv2
+from SeerPPO import get_encoded_actionV2
 from numba import jit
 from rlgym.utils import common_values, ObsBuilder
 from rlgym.utils.gamestates import PlayerData, GameState
@@ -146,9 +146,9 @@ def encode_boost_pads(boost_pads_timers):
     return [pads_active, boost_pads_timers]
 
 
-class SeerObsv2(ObsBuilder):
+class SeerObsV2(ObsBuilder):
     def __init__(self, team_size, default_tick_skip=8.0, physics_ticks_per_second=120.0):
-        super(SeerObsv2, self).__init__()
+        super(SeerObsV2, self).__init__()
 
         self.team_size = team_size
 
@@ -184,7 +184,7 @@ class SeerObsv2(ObsBuilder):
 
         pads_encoding = encode_boost_pads(pads)
 
-        prev_action_enc = get_encoded_actionv2(previous_action)
+        prev_action_enc = get_encoded_actionV2(previous_action)
 
         obs = np.concatenate([ball_data, prev_action_enc, *pads_encoding, *player_encodings])
 
