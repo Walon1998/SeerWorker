@@ -90,7 +90,6 @@ class SeerRewardV2(RewardFunction):
     def get_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
 
         rewards_list = [r.get_reward(player, state, previous_action) for r in self.rewards]
-
         return np.dot(rewards_list, self.weights)
 
     def get_final_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:

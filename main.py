@@ -15,7 +15,8 @@ import aiohttp
 import compress_pickle
 import numpy as np
 import torch
-from SeerPPO import SeerNetwork, RolloutBuffer, SeerNetworkV2
+from SeerPPO import RolloutBuffer
+from SeerPPO.V2 import SeerNetworkV2
 from SeerPPO.past_models_download import download_models
 from shared_memory_dict import SharedMemoryDict
 

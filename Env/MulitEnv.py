@@ -7,17 +7,8 @@ from Env.AsyncEnv import AsyncEnv
 
 
 def get_obs_size(team_size):
-    if team_size == 1:
-        return 139
-
-    if team_size == 2:
-        return 185
-
-    if team_size == 3:
-        return 231
-
-    raise NotImplementedError
-    return -1
+    sizes = [139, 185, 231]
+    return sizes[team_size]
 
 
 class MultiEnv(gym.Env):

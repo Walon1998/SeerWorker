@@ -11,7 +11,7 @@ from SeerPPO.past_models_download import start_past_model_downloader
 
 from Env.MonitorWrapper import MonitorWrapper
 from Env.MulitEnv import MultiEnv, get_obs_size
-from SeerPPO import SeerNetworkV2
+from SeerPPO.V2 import SeerNetworkV2
 
 from Env.NormalizeReward import NormalizeReward
 

@@ -1,11 +1,36 @@
 import math
 from typing import Any
-
 import numpy as np
-from SeerPPO import get_encoded_actionV2
 from numba import jit
 from rlgym.utils import common_values, ObsBuilder
 from rlgym.utils.gamestates import PlayerData, GameState
+
+
+@jit(nopython=True, fastmath=True)
+def get_encoded_actionV2(action: np.ndarray) -> np.ndarray:
+    # throttle, steer, pitch, yaw, roll, jump, boost, handbrake
+
+    action_encoding = np.zeros(15, dtype=np.float32)
+
+    acc = 0
+    throttle_index = action[0] + 1 + acc
+    acc += 3
+    steer_yaw_index = action[1] + 1 + acc
+    acc += 3
+    pitch_index = action[2] + 1 + acc
+    acc += 3
+    roll_index = action[4] + 1 + acc
+
+    action_encoding[int(throttle_index)] = 1.0
+    action_encoding[int(steer_yaw_index)] = 1.0
+    action_encoding[int(pitch_index)] = 1.0
+    action_encoding[int(roll_index)] = 1.0
+
+    action_encoding[12] = action[5]
+    action_encoding[13] = action[6]
+    action_encoding[14] = action[7]
+
+    return action_encoding
 
 
 def encode_all_players(player, state, inverted, demo_timers, ball):
@@ -83,18 +108,18 @@ def _encode_player(player: PlayerData, inverted: bool, demo_timer: float, ball):
 
 
 def _encode_ball(ball):
-    state = np.empty(10, dtype=np.float32)
-
-    state[0] = ball.position[0] * (1.0 / 4096.0)
-    state[1] = ball.position[1] * (1.0 / 5120.0)
-    state[2] = ball.position[2] * (1.0 / 2048.0)
-    state[3] = ball.linear_velocity[0] * (1.0 / 6000.0)
-    state[4] = ball.linear_velocity[1] * (1.0 / 6000.0)
-    state[5] = ball.linear_velocity[2] * (1.0 / 6000.0)
-    state[6] = ball.angular_velocity[0] * (1.0 / 6.0)
-    state[7] = ball.angular_velocity[1] * (1.0 / 6.0)
-    state[8] = ball.angular_velocity[2] * (1.0 / 6.0)
-    state[9] = np.linalg.norm([state[3], state[4], state[5]]) * (1.0 / 6000.0)
+    state = np.array([
+        ball.position[0] * (1.0 / 4096.0),
+        ball.position[1] * (1.0 / 5120.0),
+        ball.position[2] * (1.0 / 2048.0),
+        ball.linear_velocity[0] * (1.0 / 6000.0),
+        ball.linear_velocity[1] * (1.0 / 6000.0),
+        ball.linear_velocity[2] * (1.0 / 6000.0),
+        ball.angular_velocity[0] * (1.0 / 6.0),
+        ball.angular_velocity[1] * (1.0 / 6.0),
+        ball.angular_velocity[2] * (1.0 / 6.0),
+        np.linalg.norm([ball.linear_velocity[3], ball.linear_velocity[4], ball.linear_velocity[5]]) * (1.0 / 6000.0),
+    ], dtype=np.float32)
 
     assert state.shape[0] == 10
 
