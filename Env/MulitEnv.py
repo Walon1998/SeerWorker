@@ -6,6 +6,20 @@ import numpy as np
 from Env.AsyncEnv import AsyncEnv
 
 
+def get_obs_size(team_size):
+    if team_size == 1:
+        return 139
+
+    if team_size == 2:
+        return 185
+
+    if team_size == 3:
+        return 231
+
+    raise NotImplementedError
+    return -1
+
+
 class MultiEnv(gym.Env):
 
     def __init__(self, num_instances, team_size, force_paging):
@@ -16,7 +30,7 @@ class MultiEnv(gym.Env):
 
         assert self.num_instances > 0
 
-        self.obs_shape = (self.num_instances * 2 * team_size, 159)
+        self.obs_shape = (self.num_instances * 2 * team_size, get_obs_size(self.team_size))
         self.reward_shape = (self.num_instances * 2 * team_size)
 
         self.instances = []

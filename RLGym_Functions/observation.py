@@ -14,7 +14,7 @@ def encode_all_players(player, state, inverted, demo_timers, ball):
     same_team = []
     opponent_team = []
 
-    for p in state.player:
+    for p in state.players:
 
         if p == player:
             continue
@@ -24,7 +24,7 @@ def encode_all_players(player, state, inverted, demo_timers, ball):
         else:
             opponent_team.append(p)
 
-    assert len(opponent_team) > len(same_team)
+    # assert len(opponent_team) > len(same_team)
 
     same_team.sort(key=lambda x: x.car_id)
     opponent_team.sort(key=lambda x: x.car_id)
@@ -186,7 +186,7 @@ class SeerObsv2(ObsBuilder):
 
         prev_action_enc = get_encoded_actionv2(previous_action)
 
-        obs = np.concatenate([ball_data, *prev_action_enc, pads_encoding, *player_encodings])
+        obs = np.concatenate([ball_data, prev_action_enc, *pads_encoding, *player_encodings])
 
         return obs
 

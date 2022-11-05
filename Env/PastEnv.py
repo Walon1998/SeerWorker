@@ -10,7 +10,7 @@ import torch
 from SeerPPO.past_models_download import start_past_model_downloader
 
 from Env.MonitorWrapper import MonitorWrapper
-from Env.MulitEnv import MultiEnv
+from Env.MulitEnv import MultiEnv, get_obs_size
 from SeerPPO import SeerNetworkv2
 
 from Env.NormalizeReward import NormalizeReward
@@ -80,7 +80,7 @@ class PastEnv(gym.Env):
         assert self.num_instances > 0
         assert self.old_instances > 0
 
-        self.obs_shape = (self.num_instances * 2 * self.team_size, 159)
+        self.obs_shape = (self.num_instances * 2 * self.team_size, get_obs_size(self.team_size))
         self.reward_shape = (self.num_instances * 2 * self.team_size)
 
         self.num_envs = (2 * self.num_instances - old_instances) * self.team_size

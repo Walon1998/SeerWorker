@@ -28,14 +28,14 @@ class SeerReplaySetterv2(StateSetter):
     def _set_ball(self, ball, ball_array):
         ball.set_pos(*ball_array[0:3])
         ball.set_lin_vel(*ball_array[3:6])
-        ball.set_ang_vel(*ball[6:9])
+        ball.set_ang_vel(*ball_array[6:9])
 
     def _set_car(self, car, car_array):
         car.set_pos(*car_array[0:3])
         car.set_lin_vel(*car_array[3:6])
         car.set_rot(*car_array[6:9])
         car.set_ang_vel(*car_array[9:12])
-        car.boost = car_array[13] / 100.0
+        car.boost = car_array[12] / 100.0
 
     def reset(self, state_wrapper: StateWrapper):
 
@@ -61,7 +61,7 @@ class SeerReplaySetterv2(StateSetter):
                 orange_cars.append(car)
 
         start = 12
-        size = 23
+        size = 13
 
         for car in blue_cars + orange_cars:
             self._set_car(car, slice[start:start + size])

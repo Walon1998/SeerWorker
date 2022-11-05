@@ -35,7 +35,7 @@ def worker(work_queue, result_queue, force_paging, team_size):
                      obs_builder=SeerObsv2(team_size),
                      action_parser=SeerActionv2(),
                      state_setter=WeightedSampleSetter(
-                         [SeerReplaySetterv2("./Replays/"),
+                         [SeerReplaySetterv2("./Replays/", team_size),
                           DefaultState(),
                           GoaliePracticeState(),
                           HoopsLikeSetter(),
