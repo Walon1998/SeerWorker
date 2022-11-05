@@ -15,7 +15,7 @@ class SeerReplaySetterV2(StateSetter):
         self.team_size = team_size
 
         dirnames = ["1v1", "2v2", "3v3"]
-        dir = os.path.join(dir, dirnames[self.team_size])
+        dir = os.path.join(dir, dirnames[self.team_size - 1])
         self.files = glob.glob(os.path.join(dir, "*.npz"))
 
     def _set_ball(self, ball, ball_array):

@@ -118,7 +118,7 @@ def _encode_ball(ball):
         ball.angular_velocity[0] * (1.0 / 6.0),
         ball.angular_velocity[1] * (1.0 / 6.0),
         ball.angular_velocity[2] * (1.0 / 6.0),
-        np.linalg.norm([ball.linear_velocity[3], ball.linear_velocity[4], ball.linear_velocity[5]]) * (1.0 / 6000.0),
+        np.linalg.norm([ball.linear_velocity[0], ball.linear_velocity[1], ball.linear_velocity[2]]) * (1.0 / 6000.0),
     ], dtype=np.float32)
 
     assert state.shape[0] == 10
@@ -186,6 +186,8 @@ class SeerObsV2(ObsBuilder):
 
         self.boost_pads_timers = np.zeros(34, dtype=np.float32)
         self.demo_timers = {}
+        for p in initial_state.players:
+            self.demo_timers.update({p: 0})
 
     def pre_step(self, state: GameState):
 
