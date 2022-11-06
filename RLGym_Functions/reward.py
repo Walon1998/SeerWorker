@@ -13,6 +13,38 @@ from rlgym_tools.extra_rewards.kickoff_reward import KickoffReward
 from shared_memory_dict import SharedMemoryDict
 
 
+class SeerKickoffReward(RewardFunction):
+    """
+    a simple reward that encourages driving towards the ball fast while it's in the neutral kickoff position
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.vel_dir_reward = VelocityPlayerToBallReward()
+
+    def reset(self, initial_state: GameState):
+        self.vel_dir_reward.reset(initial_state)
+
+    def get_reward(
+            self, player: PlayerData, state: GameState, previous_action
+    ) -> float:
+        reward = 0
+
+        dist = np.linalg.norm(player.car_data.position - state.ball.position)
+
+        for p in state.players:
+            if p.car_id == player.car_id or player.team_num != p.team_num:
+                continue
+
+            dist2 = np.linalg.norm(p.car_data.position - state.ball.position)
+            if dist2 < dist:
+                return 0
+
+        if state.ball.position[0] == 0 and state.ball.position[1] == 0:
+            reward += self.vel_dir_reward.get_reward(player, state, previous_action)
+        return reward
+
+
 class AirReward(RewardFunction):
     def __init__(self):
         super(AirReward, self).__init__()
@@ -52,7 +84,7 @@ class SeerRewardV2(RewardFunction):
                         RewardIfTouchedLast(ConstantReward()),
                         RewardIfBehindBall(ConstantReward()),
                         VelocityPlayerToBallReward(False),
-                        KickoffReward(),
+                        SeerKickoffReward(),
                         VelocityReward(False),
                         SaveBoostReward(),
                         ForwardVelocity(),
