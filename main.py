@@ -47,14 +47,15 @@ async def communication_worker_async(url, work_queue, result_queue):
         while True:
             rollout, rollout_version, mean, var, = work_queue.get()
 
-            tasks = [
+            task_high_priority = [asyncio.ensure_future(get_new_state_dict(session, url))]
+
+            tasks_low_priority = [
                 asyncio.ensure_future(send_rollout(session, url, rollout, rollout_version)),
-                asyncio.ensure_future(get_new_state_dict(session, url)),
                 asyncio.ensure_future(put_reward_mean_var(session, url, mean, var))
             ]
-            res = await asyncio.gather(*tasks)
+            res = await asyncio.gather(*task_high_priority)
 
-            result_queue.put(res[1])
+            result_queue.put(res[0])
 
 
 def communication_worker(url, work_queue, result_queue):
