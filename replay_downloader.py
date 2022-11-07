@@ -1,5 +1,4 @@
 import io
-import os.path
 
 import requests, zipfile
 from tqdm import tqdm

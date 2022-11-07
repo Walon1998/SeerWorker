@@ -104,6 +104,11 @@ def update_policy(policy, policy_version, state_dict, state_dict_version, device
 
 
 async def send_rollout(session, url, data, version):
+    buffer, last_values, episode_starts, get_monitor_data = data
+
+    buffer.compute_returns_and_advantage(last_values, episode_starts)
+    data = buffer.get_samples(get_monitor_data)
+
     data = compress_pickle.dumps((data, version), compression="gzip")
     headers = {'Content-Encoding': 'gzip'}
     async with session.post(url + "/Data", data=data, headers=headers) as resp:
@@ -131,13 +136,10 @@ def collect_rollout_cpu(policy, env, buffer, init_data):
         lstm_states = new_lstm_states
 
     assert buffer.is_full()
-
     with torch.no_grad():
         last_values = policy.predict_value(torch.as_tensor(obs, dtype=torch.float32), lstm_states, torch.as_tensor(episode_starts, dtype=torch.float32))
-    buffer.compute_returns_and_advantage(last_values.numpy().ravel(), episode_starts)
 
-    rollout = buffer.get_samples(env.get_monitor_data())
-    buffer.reset()
+    rollout = buffer, last_values.numpy().ravel(), episode_starts, env.get_monitor_data()
 
     return rollout, (obs, lstm_states, episode_starts)
 
@@ -191,10 +193,8 @@ def collect_rollout_cuda(policy, env, buffer, init_data):
 
     with torch.no_grad():
         last_values = policy.predict_value(last_obs_gpu, lstm_states, last_episode_starts_gpu)
-    buffer.compute_returns_and_advantage(last_values.to("cpu").numpy().ravel(), dones)
 
-    rollout = buffer.get_samples(env.get_monitor_data())
-    buffer.reset()
+    rollout = buffer, last_values.to("cpu").numpy().ravel(), dones, env.get_monitor_data()
 
     return rollout, (last_obs, lstm_states, last_episode_start)
 
@@ -226,15 +226,15 @@ def RolloutWorker(args):
                                                                                                                                requires_grad=False, dtype=torch.float32)
     episode_starts = np.ones(env.num_envs, dtype=np.float32)
 
-    buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
-                           GAE_LAMBDA)
-
     init_data = obs, lstm_states, episode_starts
 
     policy_version = -1
 
     while True:
         start = time.time()
+
+        buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
+                               GAE_LAMBDA)
 
         state_dict, state_dict_version = result_queue.get()
         policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"])
