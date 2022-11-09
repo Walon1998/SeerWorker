@@ -57,8 +57,6 @@ async def communication_worker_async(url, work_queue, result_queue):
 
             result_queue.put(res[0])
 
-            await asyncio.gather(*tasks_low_priority)
-
 
 def communication_worker(url, work_queue, result_queue):
     asyncio.run(communication_worker_async(url, work_queue, result_queue))
