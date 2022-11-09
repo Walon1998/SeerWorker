@@ -27,7 +27,7 @@ from Env.PastEnv import PastEnv
 from contants import GAMMA, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA, PAST_MODELS
 
 
-async def communication_worker_async(url, work_queue, result_queue):
+async def communication_worker_async_get(url, result_queue):
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0, connect=60, sock_connect=60, sock_read=60)) as session:
         print("Connecting to: ", url)
         await check_connection(session, url)
@@ -36,30 +36,41 @@ async def communication_worker_async(url, work_queue, result_queue):
         await download_models(session, url)
 
         mean_var = await get_reward_mean_var(session, url)
-
         result_queue.put(mean_var)
 
         state_dict, state_dict_version = await get_new_state_dict(session, url)
-
         result_queue.put((state_dict, state_dict_version))
         result_queue.put((state_dict, state_dict_version))
 
         while True:
+
+            time.sleep(0.5)
+
+            if result_queue.empty():
+                task_high_priority = [asyncio.ensure_future(get_new_state_dict(session, url))]
+                res = await asyncio.gather(*task_high_priority)
+                result_queue.put(res[0])
+
+
+async def communication_worker_async_put(url, work_queue):
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0, connect=60, sock_connect=60, sock_read=60)) as session:
+        print("Connecting to: ", url)
+        await check_connection(session, url)
+        print("Connection successful!")
+
+        while True:
             rollout, rollout_version, mean, var, = work_queue.get()
 
-            task_high_priority = [asyncio.ensure_future(get_new_state_dict(session, url))]
-
-            tasks_low_priority = [
-                asyncio.ensure_future(send_rollout(session, url, rollout, rollout_version)),
-                asyncio.ensure_future(put_reward_mean_var(session, url, mean, var))
-            ]
-            res = await asyncio.gather(*task_high_priority)
-
-            result_queue.put(res[0])
+            asyncio.ensure_future(send_rollout(session, url, rollout, rollout_version)),
+            asyncio.ensure_future(put_reward_mean_var(session, url, mean, var))
 
 
-def communication_worker(url, work_queue, result_queue):
-    asyncio.run(communication_worker_async(url, work_queue, result_queue))
+def communication_worker_put(url, work_queue):
+    asyncio.run(communication_worker_async_put(url, work_queue))
+
+
+def communication_worker_get(url, result_queue):
+    asyncio.run(communication_worker_async_get(url, result_queue))
 
 
 async def check_connection(session, url):
@@ -209,7 +220,10 @@ def RolloutWorker(args):
     work_queue = Queue()
     result_queue = Queue()
 
-    p = Process(target=communication_worker, args=(url, work_queue, result_queue))
+    p = Process(target=communication_worker_get, args=(url, result_queue))
+    p.start()
+
+    p = Process(target=communication_worker_put, args=(url, work_queue))
     p.start()
 
     mean, var = result_queue.get()
