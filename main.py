@@ -44,12 +44,10 @@ async def communication_worker_async_get(url, result_queue):
 
         while True:
 
-            time.sleep(0.5)
+            time.sleep(0.1)
 
             if result_queue.empty():
-                task_high_priority = [asyncio.ensure_future(get_new_state_dict(session, url))]
-                res = await asyncio.gather(*task_high_priority)
-                result_queue.put(res[0])
+                result_queue.put(await get_new_state_dict(session, url))
 
 
 async def communication_worker_async_put(url, work_queue):
