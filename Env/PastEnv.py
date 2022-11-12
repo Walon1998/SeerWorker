@@ -63,7 +63,7 @@ def past_worker(work_queue, result_queue, batch_size, device, url):
         if counter % 5_000 == 0:
             past_models = get_past_models(session, url)
             policy.load_state_dict(torch.load(choose_model(past_models), map_location=device))
-            lstm_state = torch.zeros(1, batch_size, 512, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, 512, device=device, requires_grad=False,
+            lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False,
                                                                                                                                dtype=torch.float32)
 
 
@@ -92,7 +92,7 @@ class PastEnv(gym.Env):
         # [[0], [0], [0], [1], [1], [1]]
 
         for i in range(self.old_instances):
-            for j in self.team_size:
+            for j in range(self.team_size):
                 self.mask_old_opponents[self.team_size * 2 * i + j] = True
 
         self.mask_new_opponent = np.logical_not(self.mask_old_opponents)
