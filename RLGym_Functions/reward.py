@@ -75,7 +75,7 @@ class SeerRewardV2(RewardFunction):
     def __init__(self):
         super(RewardFunction, self).__init__()
 
-        self.rewards = [EventReward(goal=1.25, touch=0.025, demo=0.3, boost_pickup=0.1),
+        self.rewards = [EventReward(goal=0.0, team_goal=1.0, touch=0.025, demo=0.3, boost_pickup=0.1),
                         LiuDistancePlayerToBallReward(),
                         LiuDistanceBallToGoalReward(False),
                         FaceBallReward(),
