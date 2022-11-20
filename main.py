@@ -62,7 +62,7 @@ async def communication_worker_async_put(url, work_queue):
                 asyncio.ensure_future(send_rollout(session, url, rollout, rollout_version)),
                 asyncio.ensure_future(put_reward_mean_var(session, url, mean, var))]
 
-            await asyncio.gather(*tasks)
+            asyncio.gather(*tasks)
 
 
 def communication_worker_put(url, work_queue):
