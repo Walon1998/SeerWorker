@@ -33,8 +33,8 @@ def get_encoded_actionV2(action: np.ndarray) -> np.ndarray:
     return action_encoding
 
 
-def encode_all_players(player, state, inverted, demo_timers, ball):
-    player_encoding = _encode_player(player, inverted, demo_timers.get(player.car_id), ball)
+def encode_all_players(player, state, inverted, ball):
+    player_encoding = _encode_player(player, inverted, ball)
 
     same_team = []
     opponent_team = []
@@ -56,12 +56,12 @@ def encode_all_players(player, state, inverted, demo_timers, ball):
 
     encodings = [player_encoding]
     for p in same_team + opponent_team:
-        encodings.append(_encode_player(p, inverted, demo_timers.get(p.car_id), ball))
+        encodings.append(_encode_player(p, inverted, ball))
 
     return encodings
 
 
-def _encode_player(player: PlayerData, inverted: bool, demo_timer: float, ball):
+def _encode_player(player: PlayerData, inverted: bool, ball):
     if inverted:
         player_car = player.inverted_car_data
     else:
@@ -89,11 +89,10 @@ def _encode_player(player: PlayerData, inverted: bool, demo_timer: float, ball):
         player_car.angular_velocity[0] * (1.0 / 5.5),
         player_car.angular_velocity[1] * (1.0 / 5.5),
         player_car.angular_velocity[2] * (1.0 / 5.5),
-        demo_timer * (1 / 3.0),
+        player.is_demoed,
         player.boost_amount,
         player.on_ground,
         player.has_flip,
-        demo_timer > 0,
         vel_norm * (1.0 / 6000.0),
         vel_norm > 2200,
         ball_diff_x * (1.0 / (4096.0 * 2.0)),
@@ -102,7 +101,7 @@ def _encode_player(player: PlayerData, inverted: bool, demo_timer: float, ball):
         ball_diff_norm * (1.0 / 13272.55),
     ], dtype=np.float32)
 
-    assert array.shape[0] == 23
+    assert array.shape[0] == 22
 
     return array
 
@@ -126,110 +125,30 @@ def _encode_ball(ball):
     return state
 
 
-def encode_boost_pads(boost_pads_timers):
-    pads_active = boost_pads_timers == 0.0
-
-    pads_scaler = np.array([
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 10.0,
-        1.0 / 10.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 10.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 10.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 10.0,
-        1.0 / 10.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-        1.0 / 4.0,
-    ], dtype=np.float32)
-
-    boost_pads_timers *= pads_scaler
-
-    return [pads_active, boost_pads_timers]
-
-
 class SeerObsV2(ObsBuilder):
     def __init__(self, team_size, default_tick_skip=8.0, physics_ticks_per_second=120.0):
         super(SeerObsV2, self).__init__()
-
         self.team_size = team_size
-
-        self.boost_pads_timers = np.zeros(34, dtype=np.float32)
-        self.demo_timers = {}
-
         self.time_diff_tick = default_tick_skip / physics_ticks_per_second
 
     def reset(self, initial_state: GameState):
-
-        self.boost_pads_timers = np.zeros(34, dtype=np.float32)
-        self.demo_timers = {}
-        for p in initial_state.players:
-            self.demo_timers.update({p.car_id: 0})
-
-    def pre_step(self, state: GameState):
-
-        self.update_boostpads(state.boost_pads)
-        self.update_demo_timers(state)
+        pass
 
     def build_obs(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> Any:
 
         if player.team_num == common_values.ORANGE_TEAM:
             inverted = True
             ball = state.inverted_ball
-            pads = self.boost_pads_timers[::-1]
+            pads = state.inverted_boost_pads
 
         else:
             inverted = False
             ball = state.ball
-            pads = self.boost_pads_timers
+            pads = state.boost_pads
 
         ball_data = _encode_ball(ball)
-        player_encodings = encode_all_players(player, state, inverted, self.demo_timers, ball)
-
-        pads_encoding = encode_boost_pads(pads)
-
+        player_encodings = encode_all_players(player, state, inverted, ball)
         prev_action_enc = get_encoded_actionV2(previous_action)
-
-        obs = np.concatenate([ball_data, prev_action_enc, *pads_encoding, *player_encodings])
+        obs = np.concatenate([ball_data, prev_action_enc, pads, *player_encodings])
 
         return obs
-
-    def update_boostpads(self, pads):
-
-        mask = pads == 1.0
-        not_mask = np.logical_not(mask)
-
-        self.boost_pads_timers[mask] = 0.0
-        self.boost_pads_timers[not_mask] += self.time_diff_tick
-
-    def update_demo_timers(self, state: GameState):
-
-        for p in state.players:
-
-            if p.is_demoed:
-                self.demo_timers.update({p.car_id: self.demo_timers.get(p.car_id) + self.time_diff_tick})
-            else:
-                self.demo_timers.update({p.car_id: 0})
