@@ -205,6 +205,8 @@ def RolloutWorker(args):
     policy = SeerNetworkV2()
     policy.to(args["device"])
     policy.eval()
+    smd_config = SharedMemoryDict(name='shared_memory_dict', size=1024)
+    smd_config["step"] = 0
 
     work_queue = Queue()
     result_queue = Queue()
@@ -238,6 +240,7 @@ def RolloutWorker(args):
 
         state_dict, state_dict_version = result_queue.get()
         policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"])
+        smd_config["step"] = policy_version
 
         if args["device"] == "cpu":
             rollout, init_data = collect_rollout_cpu(policy, env, buffer, init_data)
