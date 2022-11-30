@@ -28,7 +28,7 @@ from contants import GAMMA, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA, PAST_MODELS
 
 
 async def communication_worker_async(url, work_queue, result_queue):
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0, connect=60, sock_connect=60, sock_read=60)) as session:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=0, connect=120, sock_connect=120, sock_read=120)) as session:
         print("Connecting to: ", url)
         await check_connection(session, url)
         print("Connection successful!")
