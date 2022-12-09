@@ -167,6 +167,45 @@ class SeerRewardV2_1(SeerRewardV2):
         assert len(self.weights) == len(self.rewards)
 
 
+class SeerRewardV2_2(SeerRewardV2):
+    def __init__(self):
+        super(SeerRewardV2, self).__init__()
+
+        self.rewards = [EventReward(goal=0.0, team_goal=1.5, touch=0.025, demo=0.3, boost_pickup=0.1),
+                        LiuDistancePlayerToBallReward(),
+                        LiuDistanceBallToGoalReward(False),
+                        FaceBallReward(),
+                        AlignBallGoal(0.5, 0.5),
+                        RewardIfClosestToBall(ConstantReward(), False),
+                        RewardIfTouchedLast(ConstantReward()),
+                        RewardIfBehindBall(ConstantReward()),
+                        VelocityPlayerToBallReward(False),
+                        SeerKickoffReward(),
+                        VelocityReward(False),
+                        SaveBoostReward(),
+                        ForwardVelocity(),
+                        AirReward()]
+
+        self.weights = np.array([
+            1.0,  # Event reward
+            0.0025,  # Distance Ball Player, Cont., [0,1]
+            0.0025,  # Distance Ball Goal, Cont., [0,1]
+            0.000625,  # Face Ball, Cont., [-1,1]
+            0.0025,  # Align ball goal, cont, [-1,1]
+            0.00125,  # Closest to ball, cont, {0,1}
+            0.00125,  # Touched Last, cont, {0,1}
+            0.00125,  # Behind Ball, cont, {0,1},
+            0.0025,  # velocity to ball, cont, [0,1]
+            0.01,  # Kickoff, cont, [0,1]
+            0.000625,  # velocity, cont, [0,1]
+            0.00125,  # Save Boost, cont, [0,1]
+            0.0015,  # forward velocity, cont, [-1,1]
+            0.000125,  # Air Reward, Cont., [0,1]
+        ], dtype=np.float32)
+
+        assert len(self.weights) == len(self.rewards)
+
+
 class DistributeRewardsV2(RewardFunction):
     """
     Inspired by OpenAI's Dota bot (OpenAI Five).
@@ -249,28 +288,38 @@ class AnnealRewards(RewardFunction):
         self.smd_config = SharedMemoryDict(name='shared_memory_dict', size=1024)
 
     def pre_step(self, state: GameState):
-        self.r_1.pre_step(state)
 
-        if self.smd_config["step"] < self.end:
+        if self.smd_config["step"] < self.start:
             self.r_0.pre_step(state)
+        elif self.smd_config["step"] > self.end:
+            self.r_1.pre_step(state)
+        else:
+            self.r_0.pre_step(state)
+            self.r_1.pre_step(state)
 
     def reset(self, initial_state: GameState):
-        self.r_1.reset(initial_state)
 
-        if self.smd_config["step"] < self.end:
-            self.r_0.reset(initial_state)
+        if self.smd_config["step"] < self.start:
+            self.r_0.reset()
+        elif self.smd_config["step"] > self.end:
+            self.r_1.reset()
+        else:
+            self.r_0.reset()
+            self.r_1.reset()
 
     def get_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
 
-        r_1_reward = self.r_1.get_reward(player, state, previous_action)
+        if self.smd_config["step"] < self.start:
+            return self.r_0.get_reward(player, state, previous_action)
+        elif self.smd_config["step"] > self.end:
+            return self.r_1.get_reward(player, state, previous_action)
+        else:
 
-        if self.smd_config["step"] >= self.end:
-            return r_1_reward
+            r_0_reward = self.r_0.get_reward(player, state, previous_action)
+            r_1_reward = self.r_1.get_reward(player, state, previous_action)
 
-        r_0_reward = self.r_0.get_reward(player, state, previous_action)
+            frac = (self.smd_config["step"] - self.start) / self.steps
 
-        frac = (self.smd_config["step"] - self.start) / self.steps
+            r = frac * r_1_reward + (1 - frac) * r_0_reward
 
-        r = frac * r_1_reward + (1 - frac) * r_0_reward
-
-        return r
+            return r
