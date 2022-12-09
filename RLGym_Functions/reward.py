@@ -300,12 +300,12 @@ class AnnealRewards(RewardFunction):
     def reset(self, initial_state: GameState):
 
         if self.smd_config["step"] < self.start:
-            self.r_0.reset()
+            self.r_0.reset(initial_state)
         elif self.smd_config["step"] > self.end:
-            self.r_1.reset()
+            self.r_1.reset(initial_state)
         else:
-            self.r_0.reset()
-            self.r_1.reset()
+            self.r_0.reset(initial_state)
+            self.r_1.reset(initial_state)
 
     def get_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
 
