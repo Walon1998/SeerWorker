@@ -288,24 +288,12 @@ class AnnealRewards(RewardFunction):
         self.smd_config = SharedMemoryDict(name='shared_memory_dict', size=1024)
 
     def pre_step(self, state: GameState):
-
-        if self.smd_config["step"] < self.start:
-            self.r_0.pre_step(state)
-        elif self.smd_config["step"] > self.end:
-            self.r_1.pre_step(state)
-        else:
-            self.r_0.pre_step(state)
-            self.r_1.pre_step(state)
+        self.r_0.pre_step(state)
+        self.r_1.pre_step(state)
 
     def reset(self, initial_state: GameState):
-
-        if self.smd_config["step"] < self.start:
-            self.r_0.reset(initial_state)
-        elif self.smd_config["step"] > self.end:
-            self.r_1.reset(initial_state)
-        else:
-            self.r_0.reset(initial_state)
-            self.r_1.reset(initial_state)
+        self.r_0.reset(initial_state)
+        self.r_1.reset(initial_state)
 
     def get_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
 
