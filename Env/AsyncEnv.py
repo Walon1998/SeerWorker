@@ -31,7 +31,7 @@ def worker(work_queue, result_queue, force_paging, team_size):
                      gravity=1,
                      boost_consumption=1,
                      terminal_conditions=[NoTouchTimeoutCondition(512), GoalScoredCondition()],
-                     reward_fn=DistributeRewardsV2(SeerRewardV2_1(), 0.5),
+                     reward_fn=DistributeRewardsV2(SeerRewardV2(), 0.0),
                      obs_builder=SeerObsV2(team_size),
                      action_parser=SeerActionV2(),
                      state_setter=WeightedSampleSetter(

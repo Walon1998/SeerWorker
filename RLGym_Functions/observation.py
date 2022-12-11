@@ -126,10 +126,9 @@ def _encode_ball(ball):
 
 
 class SeerObsV2(ObsBuilder):
-    def __init__(self, team_size, default_tick_skip=8.0, physics_ticks_per_second=120.0):
+    def __init__(self, team_size):
         super(SeerObsV2, self).__init__()
         self.team_size = team_size
-        self.time_diff_tick = default_tick_skip / physics_ticks_per_second
 
     def reset(self, initial_state: GameState):
         pass
@@ -150,6 +149,6 @@ class SeerObsV2(ObsBuilder):
         player_encodings = encode_all_players(player, state, inverted, ball)
         prev_action_enc = get_encoded_actionV2(previous_action)
         obs = np.concatenate([ball_data, prev_action_enc, pads, *player_encodings])
-        obs = np.pad(obs, (0, 191 - obs.shape[-1]), 'constant')
+        # obs = np.pad(obs, (0, 191 - obs.shape[-1]), 'constant')
 
         return obs
