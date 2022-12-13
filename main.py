@@ -216,12 +216,13 @@ def RolloutWorker(args):
 
     mean, var = result_queue.get()
 
-    if PAST_MODELS == 0.0:
-        env = MultiEnv(args["N"], args["team_size"], args["force_paging"])
-        env = MonitorWrapper(env)
-        env = NormalizeReward(env, mean, var, gamma=GAMMA)
-    else:
-        env = PastEnv(args["N"], max(int(math.floor(args["N"] * PAST_MODELS)), 1), args["team_size"], mean, var, GAMMA, args["device_old"], url, args["force_paging"])
+    env = MultiEnv(args["N"], args["team_size"], args["force_paging"])
+    env = MonitorWrapper(env)
+
+    if PAST_MODELS != 0.0:
+        env = PastEnv(env, max(int(math.floor(args["N"] * PAST_MODELS)), 1),  args["device_old"], url)
+
+    env = NormalizeReward(env, mean, var, gamma=GAMMA)
 
     obs = env.reset()
     lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False, dtype=torch.float32), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,

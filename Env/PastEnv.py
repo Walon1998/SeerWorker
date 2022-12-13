@@ -69,12 +69,14 @@ def past_worker(work_queue, result_queue, batch_size, device, url):
 
 class PastEnv(gym.Env):
 
-    def __init__(self, num_instances, old_instances, team_size, mean, var, gamma, device, url, force_paging):
+    def __init__(self, env, old_instances, device, url):
         super(PastEnv, self).__init__()
 
-        self.num_instances = num_instances
+        self.env = env
         self.old_instances = old_instances
-        self.team_size = team_size
+        self.num_instances = env.num_instances
+        self.team_size = env.team_size
+        self.is_vector_env = True
 
         assert self.num_instances >= self.old_instances
         assert self.num_instances > 0
@@ -97,13 +99,9 @@ class PastEnv(gym.Env):
 
         self.mask_new_opponent = np.logical_not(self.mask_old_opponents)
 
-        self.env = MultiEnv(num_instances, team_size, force_paging)
-        self.env = MonitorWrapper(self.env)
-        self.env = NormalizeReward(self.env, mean, var, gamma=gamma)
         self.action_space = self.env.action_space
         self.observation_space = self.env.observation_space
 
-        self.return_rms = self.env.return_rms
 
         self.work_queue = Queue()
         self.result_queue = Queue()
