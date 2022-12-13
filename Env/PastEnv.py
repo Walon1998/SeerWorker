@@ -14,6 +14,7 @@ from Env.MulitEnv import MultiEnv, get_obs_size
 from SeerPPO.V2 import SeerNetworkV2
 
 from Env.NormalizeReward import NormalizeReward
+from contants import N_STEPS
 
 
 def get_past_models(session, url):
@@ -60,7 +61,7 @@ def past_worker(work_queue, result_queue, batch_size, device, url):
 
             counter += 1
 
-            if counter % 5_000 == 0:
+            if counter % N_STEPS == 0:
                 past_models = get_past_models(session, url)
                 policy.load_state_dict(torch.load(choose_model(past_models), map_location=device))
                 lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size,
