@@ -219,8 +219,8 @@ def RolloutWorker(args):
     env = MultiEnv(args["N"], args["team_size"], args["force_paging"])
     env = MonitorWrapper(env)
 
-    if PAST_MODELS != 0.0:
-        env = PastEnv(env, max(int(math.floor(args["N"] * PAST_MODELS)), 1),  args["device_old"], url)
+    # if PAST_MODELS != 0.0:
+    env = PastEnv(env, 0,  args["device_old"], url)
 
     env = NormalizeReward(env, mean, var, gamma=GAMMA)
 
