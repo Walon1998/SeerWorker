@@ -37,34 +37,35 @@ def past_worker(work_queue, result_queue, batch_size, device, url):
     policy = SeerNetworkV2()
     lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device,
                                                                                                                                            requires_grad=False, dtype=torch.float32)
-    try:
-        policy.load_state_dict(torch.load(choose_model(past_models)))
-    except:
-        pass
+
+    policy.load_state_dict(torch.load(choose_model(past_models)))
 
     policy.to(device)
 
     counter = 0
 
-    while True:
-        obs, episode_starts = work_queue.get()
-        obs = torch.tensor(obs, dtype=torch.float32).to(device, non_blocking=True)
-        episode_starts = torch.tensor(episode_starts, dtype=torch.float32).to(device, non_blocking=True)
+    with torch.no_grad():
 
-        if device == "cuda":
-            torch.cuda.synchronize(device="cuda")
+        while True:
+            obs, episode_starts = work_queue.get()
+            obs = torch.tensor(obs, dtype=torch.float32).to(device, non_blocking=True)
+            episode_starts = torch.tensor(episode_starts, dtype=torch.float32).to(device, non_blocking=True)
 
-        actions, lstm_state = policy.predict_actions(obs, lstm_state, episode_starts, True)
+            if device == "cuda":
+                torch.cuda.synchronize(device="cuda")
 
-        result_queue.put(actions.to("cpu").numpy())
+            actions, lstm_state = policy.predict_actions(obs, lstm_state, episode_starts, True)
 
-        counter += 1
+            result_queue.put(actions.to("cpu").numpy())
 
-        if counter % 5_000 == 0:
-            past_models = get_past_models(session, url)
-            policy.load_state_dict(torch.load(choose_model(past_models), map_location=device))
-            lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False,
-                                                                                                                               dtype=torch.float32)
+            counter += 1
+
+            if counter % 5_000 == 0:
+                past_models = get_past_models(session, url)
+                policy.load_state_dict(torch.load(choose_model(past_models), map_location=device))
+                lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size,
+                                                                                                                                                       device=device, requires_grad=False,
+                                                                                                                                                       dtype=torch.float32)
 
 
 class PastEnv(gym.Env):
@@ -102,7 +103,6 @@ class PastEnv(gym.Env):
         self.action_space = self.env.action_space
         self.observation_space = self.env.observation_space
 
-
         self.work_queue = Queue()
         self.result_queue = Queue()
         p = Process(target=past_worker, args=(self.work_queue, self.result_queue, self.old_instances * self.team_size, device, url))
@@ -114,29 +114,28 @@ class PastEnv(gym.Env):
         obs = self.env.reset()
 
         obs_old = obs[self.mask_old_opponents]
+        self.work_queue.put((obs_old, np.ones(self.old_instances * self.team_size, dtype=np.float32)))
+
         obs_new = obs[self.mask_new_opponent]
 
-        self.work_queue.put((obs_old, np.ones(self.old_instances * self.team_size, dtype=np.float32)))
         return obs_new
 
     def step(self, action):
-        old_action = self.result_queue.get()
-
         combined_actions = np.empty([self.num_instances * 2 * self.team_size, 7], dtype=np.float32)
-        combined_actions[self.mask_old_opponents] = old_action
         combined_actions[self.mask_new_opponent] = action
+
+        old_action = self.result_queue.get()
+        combined_actions[self.mask_old_opponents] = old_action
+
         obs, rew, done, info = self.env.step(combined_actions)
 
         obs_old = obs[self.mask_old_opponents]
-        obs_new = obs[self.mask_new_opponent]
-
-        # rew_old = rew[self.mask_old_opponents]
-        rew_new = rew[self.mask_new_opponent]
-
         done_old = done[self.mask_old_opponents]
-        done_new = done[self.mask_new_opponent]
-
         self.work_queue.put((obs_old, done_old))
+
+        obs_new = obs[self.mask_new_opponent]
+        rew_new = rew[self.mask_new_opponent]
+        done_new = done[self.mask_new_opponent]
 
         return obs_new, rew_new, done_new, None
 
