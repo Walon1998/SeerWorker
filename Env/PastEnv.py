@@ -43,6 +43,7 @@ def past_worker(work_queue, result_queue, batch_size, device, url):
         if counter % N_STEPS == 0:
             past_models = get_past_models(session, url)
             policy.load_state_dict(torch.load(choose_model(past_models), map_location=device))
+            policy.eval()
             lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size,
                                                                                                                                                    device=device, requires_grad=False,
                                                                                                                                                    dtype=torch.float32)
@@ -105,6 +106,7 @@ class PastEnv(gym.Env):
         start_past_model_downloader(url)
 
     def reset(self):
+        # print("Reset")
         obs = self.env.reset()
 
         obs_old = obs[self.mask_old_opponents]
@@ -121,15 +123,32 @@ class PastEnv(gym.Env):
         old_action = self.result_queue.get()
         combined_actions[self.mask_old_opponents] = old_action
 
+        # print("action: ", action)
+        # print("old_action: ", old_action)
+        # print("combined_actions: ", combined_actions)
+
+
         obs, rew, done, info = self.env.step(combined_actions)
+
+        # print("obs: ", obs)
+        # print("rew: ", rew)
+        # print("done: ", done)
+        # print("info: ", info)
 
         obs_old = obs[self.mask_old_opponents]
         done_old = done[self.mask_old_opponents]
         self.work_queue.put((obs_old, done_old))
 
+        # print("obs_old: ", obs_old)
+        # print("done_old: ", done_old)
+
         obs_new = obs[self.mask_new_opponent]
         rew_new = rew[self.mask_new_opponent]
         done_new = done[self.mask_new_opponent]
+
+        # print("obs_new: ", obs_new)
+        # print("rew_new: ", rew_new)
+        # print("done_new: ", done_new)
 
         return obs_new, rew_new, done_new, None
 
