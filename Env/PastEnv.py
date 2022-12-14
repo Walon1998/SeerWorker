@@ -34,39 +34,32 @@ def choose_model(past_models):
 
 def past_worker(work_queue, result_queue, batch_size, device, url):
     session = requests.Session()
-    past_models = get_past_models(session, url)
-    policy = SeerNetworkV2()
-    lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device,
-                                                                                                                                           requires_grad=False, dtype=torch.float32)
-
-    policy.load_state_dict(torch.load(choose_model(past_models)))
-
-    policy.to(device)
+    policy = SeerNetworkV2().to(device)
 
     counter = 0
 
-    with torch.no_grad():
+    while True:
 
-        while True:
-            obs, episode_starts = work_queue.get()
-            obs = torch.tensor(obs, dtype=torch.float32).to(device, non_blocking=True)
-            episode_starts = torch.tensor(episode_starts, dtype=torch.float32).to(device, non_blocking=True)
+        if counter % N_STEPS == 0:
+            past_models = get_past_models(session, url)
+            policy.load_state_dict(torch.load(choose_model(past_models), map_location=device))
+            lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size,
+                                                                                                                                                   device=device, requires_grad=False,
+                                                                                                                                                   dtype=torch.float32)
 
-            if device == "cuda":
-                torch.cuda.synchronize(device="cuda")
+        obs, episode_starts = work_queue.get()
+        obs = torch.tensor(obs, dtype=torch.float32, requires_grad=False).to(device, non_blocking=True)
+        episode_starts = torch.tensor(episode_starts, dtype=torch.float32, requires_grad=False).to(device, non_blocking=True)
 
-            actions, lstm_state = policy.predict_actions(obs, lstm_state, episode_starts, True)
+        if device == "cuda":
+            torch.cuda.synchronize(device="cuda")
 
-            result_queue.put(actions.to("cpu").numpy())
+        with torch.no_grad():
+            actions, lstm_state = policy.predict_actions(obs, lstm_state, episode_starts, False)
 
-            counter += 1
+        result_queue.put(actions.to("cpu").numpy())
 
-            if counter % N_STEPS == 0:
-                past_models = get_past_models(session, url)
-                policy.load_state_dict(torch.load(choose_model(past_models), map_location=device))
-                lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size,
-                                                                                                                                                       device=device, requires_grad=False,
-                                                                                                                                                       dtype=torch.float32)
+        counter += 1
 
 
 class PastEnv(gym.Env):
