@@ -56,7 +56,7 @@ def past_worker(work_queue, result_queue, batch_size, device, url):
             torch.cuda.synchronize(device="cuda")
 
         with torch.no_grad():
-            actions, lstm_state = policy.predict_actions(obs, lstm_state, episode_starts, False)
+            actions, lstm_state = policy.predict_actions(obs, lstm_state, episode_starts, True)
 
         result_queue.put(actions.to("cpu").numpy())
 
