@@ -151,7 +151,7 @@ class SeerRewardV2(RewardFunction):
         self.weights = np.array([
             1.25,  # Goal Scored, Sparse, {0,1-1.5}
             0.1,  # Boost, Sparse, [0,1]
-            0.1,  # Ball Touch, Sparse, [0,2]
+            0.05,  # Ball Touch, Sparse, [0,2]
             0.3,  # Demo, Sparse, {0,1}
             0.0025,  # Distance Ball Player, Cont., [0,1]
             0.0025,  # Distance Ball Goal, Cont., [0,1]
