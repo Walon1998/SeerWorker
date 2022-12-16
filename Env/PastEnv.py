@@ -123,32 +123,16 @@ class PastEnv(gym.Env):
         old_action = self.result_queue.get()
         combined_actions[self.mask_old_opponents] = old_action
 
-        # print("action: ", action)
-        # print("old_action: ", old_action)
-        # print("combined_actions: ", combined_actions)
-
-
         obs, rew, done, info = self.env.step(combined_actions)
-
-        # print("obs: ", obs)
-        # print("rew: ", rew)
-        # print("done: ", done)
-        # print("info: ", info)
 
         obs_old = obs[self.mask_old_opponents]
         done_old = done[self.mask_old_opponents]
         self.work_queue.put((obs_old, done_old))
 
-        # print("obs_old: ", obs_old)
-        # print("done_old: ", done_old)
 
         obs_new = obs[self.mask_new_opponent]
         rew_new = rew[self.mask_new_opponent]
         done_new = done[self.mask_new_opponent]
-
-        # print("obs_new: ", obs_new)
-        # print("rew_new: ", rew_new)
-        # print("done_new: ", done_new)
 
         return obs_new, rew_new, done_new, None
 
