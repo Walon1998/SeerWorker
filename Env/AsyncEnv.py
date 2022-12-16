@@ -23,7 +23,7 @@ from RLGym_Functions.state_setter import SeerReplaySetterV2
 
 
 def worker(work_queue, result_queue, force_paging, team_size):
-    env = rlgym.make(game_speed=1,
+    env = rlgym.make(game_speed=100,
                      tick_skip=8,
                      spawn_opponents=True,
                      self_play=None,
