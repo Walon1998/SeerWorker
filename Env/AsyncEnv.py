@@ -18,12 +18,12 @@ from rlgym_tools.extra_state_setters.weighted_sample_setter import WeightedSampl
 
 from RLGym_Functions.action import SeerActionV2
 from RLGym_Functions.observation import SeerObsV2
-from RLGym_Functions.reward import SeerRewardV2, DistributeRewardsV2, AnnealRewards, SeerRewardV2_1, SeerRewardV2_2
+from RLGym_Functions.reward import SeerRewardV2, DistributeRewardsV2, AnnealRewards
 from RLGym_Functions.state_setter import SeerReplaySetterV2
 
 
 def worker(work_queue, result_queue, force_paging, team_size):
-    env = rlgym.make(game_speed=100,
+    env = rlgym.make(game_speed=1,
                      tick_skip=8,
                      spawn_opponents=True,
                      self_play=None,
@@ -87,16 +87,11 @@ class AsyncEnv(gym.Env):
         self.result_queue = Queue()
         self.work_queue = Queue()
 
-        # dummy_action_single = [2.0, 2.0, 2.0, 1.0, 0.0, 1.0, 0.0] # Vollgas
-        # self._dummy_action = np.array([dummy_action_single, dummy_action_single], dtype=np.float32)
-
         p = Process(target=worker, args=(self.work_queue, self.result_queue, force_paging, team_size))
         p.start()
 
         self.observation_space = self.result_queue.get()
         self.action_space = self.result_queue.get()
-
-        # self.result_queue.put((None, None, None, None))
 
     def reset_put(self):
         self.work_queue.put((0, None))
