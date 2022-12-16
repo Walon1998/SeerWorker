@@ -149,6 +149,5 @@ class SeerObsV2(ObsBuilder):
         player_encodings = encode_all_players(player, state, inverted, ball)
         prev_action_enc = get_encoded_actionV2(previous_action)
         obs = np.concatenate([ball_data, prev_action_enc, pads, *player_encodings])
-        # obs = np.pad(obs, (0, 191 - obs.shape[-1]), 'constant')
 
         return obs
