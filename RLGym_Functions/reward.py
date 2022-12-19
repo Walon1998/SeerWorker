@@ -2,6 +2,7 @@ import math
 from typing import Union
 
 import numpy as np
+import pandas as pd
 from rlgym.utils import RewardFunction
 from rlgym.utils.common_values import BALL_RADIUS, BALL_MAX_SPEED, CAR_MAX_SPEED, CEILING_Z
 from rlgym.utils.common_values import BLUE_TEAM
@@ -12,6 +13,10 @@ from rlgym_tools.extra_rewards.diff_reward import DiffReward
 from rlgym_tools.extra_rewards.kickoff_reward import KickoffReward
 from shared_memory_dict import SharedMemoryDict
 from rlgym.utils.common_values import BLUE_TEAM, ORANGE_TEAM
+import seaborn as sns
+from matplotlib import pyplot as plt
+
+from contants import GAMMA
 
 
 class AirReward(RewardFunction):
@@ -130,108 +135,84 @@ class SeerRewardV2(RewardFunction):
     def __init__(self):
         super(RewardFunction, self).__init__()
 
-        self.rewards = [GoalScoredReward(0.1),
-                        DiffReward(SaveBoostReward(), 1.0),
-                        SeerTouchBallReward(0.28361335653610786, 0.95, 0.1, 0.013),
-                        DemoReward(),
-                        LiuDistancePlayerToBallReward(),
-                        LiuDistanceBallToGoalReward(False),
-                        FaceBallReward(),
-                        AlignBallGoal(0.5, 0.5),
-                        RewardIfClosestToBall(ConstantReward(), False),
-                        RewardIfTouchedLast(ConstantReward()),
-                        RewardIfBehindBall(ConstantReward()),
-                        VelocityPlayerToBallReward(False),
-                        KickoffReward(),
-                        VelocityReward(False),
-                        SaveBoostReward(),
-                        ForwardVelocity(),
-                        AirReward()]
+        self.rewards = [
+            GoalScoredReward(0.1),
+            DemoReward(),
+        ]
 
-        self.weights = np.array([
-            1.0,  # Goal Scored, Sparse, {0,1-1.5}
-            0.1,  # Boost, Sparse, [0,1]
-            0.025,  # Ball Touch, Sparse, [0,2]
-            0.3,  # Demo, Sparse, {0,1}
-            0.0025,  # Distance Ball Player, Cont., [0,1]
-            0.0025,  # Distance Ball Goal, Cont., [0,1]
-            0.000625,  # Face Ball, Cont., [-1,1]
-            0.0025,  # Align ball goal, cont, [-1,1]
-            0.00125,  # Closest to ball, cont, {0,1}
-            0.00125,  # Touched Last, cont, {0,1}
-            0.00125,  # Behind Ball, cont, {0,1},
-            0.0025,  # velocity to ball, cont, [0,1]
-            0.01,  # Kickoff, cont, [0,1]
-            0.000625,  # velocity, cont, [0,1]
-            0.00125,  # Save Boost, cont, [0,1]
-            0.0015,  # forward velocity, cont, [-1,1]
-            0.000125,  # Air Reward, Cont., [0,1]
+        self.rewards_weights = np.array([
+            1.0,  # Goal Scored, Sparse, {0,1}
+            0.1,  # Demo, Sparse, {0,1}
         ], dtype=np.float32)
 
-        assert len(self.weights) == len(self.rewards)
+        self.potentials = [
+            LiuDistancePlayerToBallReward(),
+            LiuDistanceBallToGoalReward(False),
+            FaceBallReward(),
+            AlignBallGoal(0.5, 0.5),
+            RewardIfClosestToBall(ConstantReward(), False),
+            RewardIfTouchedLast(ConstantReward()),
+            RewardIfBehindBall(ConstantReward()),
+            VelocityPlayerToBallReward(False),
+            VelocityReward(False),
+            ForwardVelocity(),
+            SaveBoostReward(),
+        ]
+
+        self.potential_weights = np.array([
+            1.0,  # Distance Ball Player, Cont., [0,1]
+            1.0,  # Distance Ball Goal, Cont., [0,1]
+            0.25,  # Face Ball, Cont., [-1,1]
+            1.0,  # Align ball goal, cont, [-1,1]
+            0.25,  # Closest to ball, cont, {0,1}
+            0.5,  # Touched Last, cont, {0,1}
+            0.25,  # Behind Ball, cont, {0,1},
+            0.25,  # velocity to ball, cont, [-1,1]
+            0.25,  # velocity, cont, [0,1]
+            0.1,  # forward velocity, cont, [-1,1]
+            1.0,  # Save Boost, cont, [0,1]
+        ], dtype=np.float32)
+
+        self.theta_last = 0
+
+        assert len(self.rewards_weights) == len(self.rewards)
+        assert len(self.potential_weights) == len(self.potentials)
 
     def reset(self, initial_state: GameState):
+
+        self.theta_last = 0
 
         for r in self.rewards:
             r.reset(initial_state)
 
+        for r in self.potentials:
+            r.reset(initial_state)
+
     def pre_step(self, state: GameState):
+
+        for r in self.potentials:
+            r.pre_step(state)
 
         for r in self.rewards:
             r.pre_step(state)
 
     def get_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
 
-        rewards_list = [r.get_reward(player, state, previous_action) for r in self.rewards]
-        return np.dot(rewards_list, self.weights)
+        rewards = [r.get_reward(player, state, previous_action) for r in self.rewards]
+        potentials = [r.get_reward(player, state, previous_action) for r in self.potentials]
+
+        R = np.dot(rewards, self.rewards_weights)
+
+        theta_now = np.dot(potentials, self.potential_weights)
+
+        F = GAMMA * theta_now - self.theta_last
+
+        self.theta_last = theta_now
+
+        return R + F
 
     def get_final_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
         return self.get_reward(player, state, previous_action)
-
-
-class SeerRewardV2_1(SeerRewardV2):
-    def __init__(self):
-        super(SeerRewardV2, self).__init__()
-
-        self.rewards = [GoalScoredReward(0.1),
-                        DiffReward(SaveBoostReward(), 1.0),
-                        SeerTouchBallReward(0.28361335653610786, 0.95, 0.1, 0.013),
-                        DemoReward(),
-                        LiuDistancePlayerToBallReward(),
-                        LiuDistanceBallToGoalReward(False),
-                        FaceBallReward(),
-                        AlignBallGoal(0.5, 0.5),
-                        RewardIfClosestToBall(ConstantReward(), False),
-                        RewardIfTouchedLast(ConstantReward()),
-                        RewardIfBehindBall(ConstantReward()),
-                        VelocityPlayerToBallReward(False),
-                        KickoffReward(),
-                        VelocityReward(False),
-                        SaveBoostReward(),
-                        ForwardVelocity(),
-                        AirReward()]
-
-        self.weights = np.array([
-            1.25,  # Goal Scored, Sparse, {0,1-1.5}
-            0.1,  # Boost, Sparse, [0,1]
-            0.025,  # Ball Touch, Sparse, [0,2]
-            0.3,  # Demo, Sparse, {0,1}
-            0.0025,  # Distance Ball Player, Cont., [0,1]
-            0.0025,  # Distance Ball Goal, Cont., [0,1]
-            0.000625,  # Face Ball, Cont., [-1,1]
-            0.0025,  # Align ball goal, cont, [-1,1]
-            0.00125,  # Closest to ball, cont, {0,1}
-            0.00125,  # Touched Last, cont, {0,1}
-            0.00125,  # Behind Ball, cont, {0,1},
-            0.0025,  # velocity to ball, cont, [0,1]
-            0.0125,  # Kickoff, cont, [0,1]
-            0.000625,  # velocity, cont, [0,1]
-            0.00125,  # Save Boost, cont, [0,1]
-            0.0015,  # forward velocity, cont, [-1,1]
-            0.000125,  # Air Reward, Cont., [0,1]
-        ], dtype=np.float32)
-
-        assert len(self.weights) == len(self.rewards)
 
 
 class DistributeRewardsV2(RewardFunction):
