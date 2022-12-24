@@ -33,6 +33,21 @@ class AirReward(RewardFunction):
             return player.car_data.position[2] / CEILING_Z
 
 
+class TouchedLast(RewardFunction):
+    def __init__(self):
+        super(TouchedLast, self).__init__()
+        self.last_touch = None
+
+    def reset(self, initial_state: GameState):
+        self.last_touch = None
+
+    def get_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
+        if player.ball_touched:
+            self.last_touch = player.car_id
+
+        return player.car_id == self.last_touch
+
+
 class ForwardVelocity(RewardFunction):
     def __init__(self):
         super(ForwardVelocity, self).__init__()
@@ -151,7 +166,7 @@ class SeerRewardV2(RewardFunction):
             FaceBallReward(),
             AlignBallGoal(0.5, 0.5),
             RewardIfClosestToBall(ConstantReward(), False),
-            RewardIfTouchedLast(ConstantReward()),
+            TouchedLast(),
             RewardIfBehindBall(ConstantReward()),
             VelocityPlayerToBallReward(False),
             VelocityReward(False),
