@@ -48,6 +48,30 @@ class TouchedLast(RewardFunction):
         return player.car_id == self.last_touch
 
 
+class DribbleReward(RewardFunction):
+    def __init__(self):
+        super(RewardFunction, self).__init__()
+        self.potential = {}
+        self.SUBTRACT = 0.05
+
+    def reset(self, initial_state: GameState):
+        self.potential = {}
+
+        for p in initial_state.players:
+            self.potential[p.car_id] = 0
+
+    def get_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
+
+        if player.ball_touched:
+            self.potential[player.car_id] = 1.0
+        else:
+            self.potential[player.car_id] = max(self.potential[player.car_id] - self.SUBTRACT, 0)
+
+        print(self.potential[player.car_id])
+
+        return self.potential[player.car_id]
+
+
 class ForwardVelocity(RewardFunction):
     def __init__(self):
         super(ForwardVelocity, self).__init__()
@@ -172,6 +196,7 @@ class SeerRewardV2(RewardFunction):
             VelocityReward(False),
             ForwardVelocity(),
             SaveBoostReward(),
+            DribbleReward()
         ]
 
         self.potential_weights = np.array([
@@ -186,6 +211,7 @@ class SeerRewardV2(RewardFunction):
             0.25,  # velocity, cont, [0,1]
             0.1,  # forward velocity, cont, [-1,1]
             1.0,  # Save Boost, cont, [0,1]
+            1.0,  # DribbleReward [0,1]
         ], dtype=np.float32)
 
         self.potential_weights = self.potential_weights / np.sum(self.potential_weights)
