@@ -67,8 +67,6 @@ class DribbleReward(RewardFunction):
         else:
             self.potential[player.car_id] = max(self.potential[player.car_id] - self.SUBTRACT, 0)
 
-        print(self.potential[player.car_id])
-
         return self.potential[player.car_id]
 
 
