@@ -34,18 +34,18 @@ async def communication_worker_async(url, work_queue, result_queue):
 
         await download_models(session, url)
 
-        state_dict, state_dict_version = await get_new_state_dict(session, url)
+        data = await get_new_state_dict(session, url)
 
-        result_queue.put((state_dict, state_dict_version))
-        result_queue.put((state_dict, state_dict_version))
+        result_queue.put(data)
+        result_queue.put(data)
 
         while True:
-            rollout, rollout_version = work_queue.get()
+            rollout, rollout_version, reward_mean, reward_std = work_queue.get()
 
             task_high_priority = [asyncio.ensure_future(get_new_state_dict(session, url))]
 
             tasks_low_priority = [
-                asyncio.ensure_future(send_rollout(session, url, rollout, rollout_version)),
+                asyncio.ensure_future(send_rollout(session, url, rollout, rollout_version, reward_mean, reward_std)),
             ]
             res = await asyncio.gather(*task_high_priority)
 
@@ -64,9 +64,9 @@ async def check_connection(session, url):
 async def get_new_state_dict(session, url):
     async with session.get(url + "/Weights") as resp:
         assert resp.status == 200
-        data, version = compress_pickle.loads(await resp.read(), compression="gzip")
+        data, version, reward_mean, reward_std = compress_pickle.loads(await resp.read(), compression="gzip")
         data = torch.load(io.BytesIO(data), map_location="cpu")
-        return data, version
+        return data, version, reward_mean, reward_std
 
 
 def update_policy(policy, policy_version, state_dict, state_dict_version, device):
@@ -79,10 +79,10 @@ def update_policy(policy, policy_version, state_dict, state_dict_version, device
     return state_dict_version
 
 
-async def send_rollout(session, url, data, version):
+async def send_rollout(session, url, data, version, reward_mean, reward_std):
     buffer, last_values, episode_starts, get_monitor_data = data
 
-    buffer.compute_returns_and_advantage(last_values, episode_starts)
+    buffer.compute_returns_and_advantage(last_values, episode_starts, reward_mean, reward_std)
     data = buffer.get_samples(get_monitor_data)
 
     data = compress_pickle.dumps((data, version), compression="gzip")
@@ -210,8 +210,8 @@ def RolloutWorker(args):
 
         buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
                                GAE_LAMBDA)
+        state_dict, state_dict_version, reward_mean, reward_std = result_queue.get()
 
-        state_dict, state_dict_version = result_queue.get()
         policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"])
         smd_config["step"] = policy_version
 
@@ -222,7 +222,7 @@ def RolloutWorker(args):
         else:
             exit(-1)
 
-        work_queue.put((rollout, policy_version))
+        work_queue.put((rollout, policy_version, reward_mean, reward_std))
 
         end = time.time()
 
