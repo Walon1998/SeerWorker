@@ -212,8 +212,6 @@ class SeerRewardV2(RewardFunction):
             1.0,  # DribbleReward [0,1]
         ], dtype=np.float32)
 
-        self.potential_weights = self.potential_weights / np.sum(self.potential_weights)
-
         self.theta_last = 0
 
         assert len(self.rewards_weights) == len(self.rewards)
