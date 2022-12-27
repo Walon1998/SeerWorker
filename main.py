@@ -22,6 +22,7 @@ from shared_memory_dict import SharedMemoryDict
 
 from Env.MonitorWrapper import MonitorWrapper
 from Env.MulitEnv import MultiEnv
+from Env.NormalizeReward import NormalizeReward
 from Env.PastEnv import PastEnv
 from contants import GAMMA, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA, PAST_MODELS
 
@@ -82,8 +83,8 @@ def update_policy(policy, policy_version, state_dict, state_dict_version, device
 async def send_rollout(session, url, data, version, reward_mean, reward_std):
     buffer, last_values, episode_starts, get_monitor_data = data
 
-    buffer.compute_returns_and_advantage(last_values, episode_starts, reward_mean, reward_std)
-    data = buffer.get_samples(get_monitor_data)
+    buffer.compute_returns_and_advantage(last_values, episode_starts)
+    data = buffer.get_samples(get_monitor_data, reward_mean, reward_std)
 
     data = compress_pickle.dumps((data, version), compression="gzip")
     headers = {'Content-Encoding': 'gzip'}
@@ -196,6 +197,8 @@ def RolloutWorker(args):
     if PAST_MODELS != 0.0:
         env = PastEnv(env, max(int(math.floor(args["N"] * PAST_MODELS)), 1), args["device_old"], url)
 
+    env = NormalizeReward(env, 0.0, 1.0, gamma=GAMMA)
+
     obs = env.reset()
     lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False, dtype=torch.float32), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
                                                                                                                                requires_grad=False, dtype=torch.float32)
@@ -212,6 +215,9 @@ def RolloutWorker(args):
                                GAE_LAMBDA)
         state_dict, state_dict_version, reward_mean, reward_std = result_queue.get()
 
+        env.return_rms.mean = reward_mean
+        env.return_rms.var = reward_std
+
         policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"])
         smd_config["step"] = policy_version
 
@@ -222,7 +228,7 @@ def RolloutWorker(args):
         else:
             exit(-1)
 
-        work_queue.put((rollout, policy_version, reward_mean, reward_std))
+        work_queue.put((rollout, policy_version, env.return_rms.mean, env.return_rms.var))
 
         end = time.time()
 
