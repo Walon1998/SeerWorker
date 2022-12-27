@@ -22,7 +22,6 @@ from shared_memory_dict import SharedMemoryDict
 
 from Env.MonitorWrapper import MonitorWrapper
 from Env.MulitEnv import MultiEnv
-from Env.NormalizeReward import NormalizeReward
 from Env.PastEnv import PastEnv
 from contants import GAMMA, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA, PAST_MODELS
 
@@ -35,23 +34,18 @@ async def communication_worker_async(url, work_queue, result_queue):
 
         await download_models(session, url)
 
-        mean_var = await get_reward_mean_var(session, url)
-
-        result_queue.put(mean_var)
-
         state_dict, state_dict_version = await get_new_state_dict(session, url)
 
         result_queue.put((state_dict, state_dict_version))
         result_queue.put((state_dict, state_dict_version))
 
         while True:
-            rollout, rollout_version, mean, var, = work_queue.get()
+            rollout, rollout_version = work_queue.get()
 
             task_high_priority = [asyncio.ensure_future(get_new_state_dict(session, url))]
 
             tasks_low_priority = [
                 asyncio.ensure_future(send_rollout(session, url, rollout, rollout_version)),
-                asyncio.ensure_future(put_reward_mean_var(session, url, mean, var))
             ]
             res = await asyncio.gather(*task_high_priority)
 
@@ -64,24 +58,6 @@ def communication_worker(url, work_queue, result_queue):
 
 async def check_connection(session, url):
     async with session.get(url) as resp:
-        assert resp.status == 200
-
-
-async def get_reward_mean_var(session, url):
-    async with session.get(url + "/mean_var") as resp:
-        assert resp.status == 200
-        bytes = await resp.read()
-        mean = bytes[0:8]
-        var = bytes[8:16]
-        mean, var = struct.unpack('<d', mean), struct.unpack('<d', var)
-        return mean[0], var[0]
-
-
-async def put_reward_mean_var(session, url, mean, var):
-    mean = struct.pack('<d', mean)
-    var = struct.pack('<d', var)
-    data = bytes(mean) + bytes(var)
-    async with session.post(url + "/mean_var", data=data) as resp:
         assert resp.status == 200
 
 
@@ -214,15 +190,11 @@ def RolloutWorker(args):
     p = Process(target=communication_worker, args=(url, work_queue, result_queue))
     p.start()
 
-    mean, var = result_queue.get()
-
     env = MultiEnv(args["N"], args["team_size"], args["force_paging"])
     env = MonitorWrapper(env)
 
     if PAST_MODELS != 0.0:
-        env = PastEnv(env, max(int(math.floor(args["N"] * PAST_MODELS)), 1),  args["device_old"], url)
-
-    env = NormalizeReward(env, mean, var, gamma=GAMMA)
+        env = PastEnv(env, max(int(math.floor(args["N"] * PAST_MODELS)), 1), args["device_old"], url)
 
     obs = env.reset()
     lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False, dtype=torch.float32), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
@@ -250,7 +222,7 @@ def RolloutWorker(args):
         else:
             exit(-1)
 
-        work_queue.put((rollout, policy_version, env.return_rms.mean, env.return_rms.var))
+        work_queue.put((rollout, policy_version))
 
         end = time.time()
 
