@@ -213,16 +213,16 @@ class SeerRewardV2(RewardFunction):
         ], dtype=np.float32)
 
         self.potential_weights = self.potential_weights / np.sum(self.potential_weights)
-        self.potential_weights *= 2.0
 
-        self.theta_last = 0
+        self.theta_last = {}
 
         assert len(self.rewards_weights) == len(self.rewards)
         assert len(self.potential_weights) == len(self.potentials)
 
     def reset(self, initial_state: GameState):
 
-        self.theta_last = 0
+        for p in initial_state.players:
+            self.theta_last[p.car_id] = 0
 
         for r in self.rewards:
             r.reset(initial_state)
@@ -247,9 +247,9 @@ class SeerRewardV2(RewardFunction):
 
         theta_now = np.dot(potentials, self.potential_weights)
 
-        F = GAMMA * theta_now - self.theta_last
+        F = GAMMA * theta_now - self.theta_last[player.car_id]
 
-        self.theta_last = theta_now
+        self.theta_last[player.car_id] = theta_now
 
         return R + F
 

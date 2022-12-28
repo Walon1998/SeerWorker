@@ -215,10 +215,6 @@ def RolloutWorker(args):
                                GAE_LAMBDA)
         state_dict, state_dict_version, reward_mean, reward_std = result_queue.get()
 
-        # if state_dict_version != policy_version:
-        #     env.return_rms.mean = reward_mean
-        #     env.return_rms.var = reward_std
-
         policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"])
         smd_config["step"] = policy_version
 
