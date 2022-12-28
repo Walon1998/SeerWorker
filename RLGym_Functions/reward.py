@@ -178,8 +178,8 @@ class SeerRewardV2(RewardFunction):
         ]
 
         self.rewards_weights = np.array([
-            1.0,  # Goal Scored, Sparse, {0,1}
-            0.1,  # Demo, Sparse, {0,1}
+            0.0,  # Goal Scored, Sparse, {0,1}
+            0.0,  # Demo, Sparse, {0,1}
         ], dtype=np.float32)
 
         self.potentials = [
@@ -194,7 +194,7 @@ class SeerRewardV2(RewardFunction):
             VelocityReward(False),
             ForwardVelocity(),
             SaveBoostReward(),
-            # DribbleReward()
+            DribbleReward()
         ]
 
         self.potential_weights = np.array([
@@ -209,7 +209,7 @@ class SeerRewardV2(RewardFunction):
             0.25,  # velocity, cont, [0,1]
             0.1,  # forward velocity, cont, [-1,1]
             1.0,  # Save Boost, cont, [0,1]
-            # 1.0,  # DribbleReward [0,1]
+            0.25,  # DribbleReward [0,1]
         ], dtype=np.float32)
 
         self.theta_last = {}
