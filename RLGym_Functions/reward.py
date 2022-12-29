@@ -168,88 +168,60 @@ class SeerTouchBallReward(RewardFunction):
             return 0.0
 
 
-class SeerRewardV2(RewardFunction):
+class SeerReward(RewardFunction):
     def __init__(self):
         super(RewardFunction, self).__init__()
 
-        self.rewards = [
-            GoalScoredReward(0.1),
-            DemoReward(),
-        ]
+        self.rewards = [GoalScoredReward(0.1),
+                        DiffReward(SaveBoostReward(), 1.0),
+                        SeerTouchBallReward(0.28361335653610786, 0.95, 0.1, 0.013),
+                        DemoReward(),
+                        LiuDistancePlayerToBallReward(),
+                        LiuDistanceBallToGoalReward(False),
+                        FaceBallReward(),
+                        AlignBallGoal(0.5, 0.5),
+                        RewardIfClosestToBall(ConstantReward(), False),
+                        TouchedLast(),
+                        RewardIfBehindBall(ConstantReward()),
+                        VelocityPlayerToBallReward(False),
+                        KickoffReward(),
+                        VelocityReward(False),
+                        SaveBoostReward(),
+                        ForwardVelocity(),
+                        AirReward()]
 
-        self.rewards_weights = np.array([
-            0.0,  # Goal Scored, Sparse, {0,1}
-            0.0,  # Demo, Sparse, {0,1}
+        self.weights = np.array([
+            1.5,  # Goal Scored, Sparse, {0,1-1.5}
+            0.1,  # Boost, Sparse, [0,1]
+            0.05,  # Ball Touch, Sparse, [0,2]
+            0.3,  # Demo, Sparse, {0,1}
+            0.0025,  # Distance Ball Player, Cont., [0,1]
+            0.0025,  # Distance Ball Goal, Cont., [0,1]
+            0.000625,  # Face Ball, Cont., [-1,1]
+            0.0025,  # Align ball goal, cont, [-1,1]
+            0.00125,  # Closest to ball, cont, {0,1}
+            0.00125,  # Touched Last, cont, {0,1}
+            0.00125,  # Behind Ball, cont, {0,1},
+            0.0025,  # velocity to ball, cont, [0,1]
+            0.0125,  # Kickoff, cont, [0,1]
+            0.000625,  # velocity, cont, [0,1]
+            0.00125,  # Save Boost, cont, [0,1]
+            0.0015,  # forward velocity, cont, [-1,1]
+            0.000125,  # Air Reward, Cont., [0,1]
         ], dtype=np.float32)
-
-        self.potentials = [
-            LiuDistancePlayerToBallReward(),
-            LiuDistanceBallToGoalReward(False),
-            FaceBallReward(),
-            AlignBallGoal(0.5, 0.5),
-            RewardIfClosestToBall(ConstantReward(), False),
-            TouchedLast(),
-            RewardIfBehindBall(ConstantReward()),
-            VelocityPlayerToBallReward(False),
-            VelocityReward(False),
-            ForwardVelocity(),
-            SaveBoostReward(),
-            DribbleReward()
-        ]
-
-        self.potential_weights = np.array([
-            1.0,  # Distance Ball Player, Cont., [0,1]
-            1.0,  # Distance Ball Goal, Cont., [0,1]
-            0.25,  # Face Ball, Cont., [-1,1]
-            1.0,  # Align ball goal, cont, [-1,1]
-            0.25,  # Closest to ball, cont, {0,1}
-            0.25,  # Touched Last, cont, {0,1}
-            0.25,  # Behind Ball, cont, {0,1},
-            0.25,  # velocity to ball, cont, [-1,1]
-            0.25,  # velocity, cont, [0,1]
-            0.1,  # forward velocity, cont, [-1,1]
-            1.0,  # Save Boost, cont, [0,1]
-            0.25,  # DribbleReward [0,1]
-        ], dtype=np.float32)
-
-        self.theta_last = {}
-
-        assert len(self.rewards_weights) == len(self.rewards)
-        assert len(self.potential_weights) == len(self.potentials)
 
     def reset(self, initial_state: GameState):
-
-        for p in initial_state.players:
-            self.theta_last[p.car_id] = 0
-
         for r in self.rewards:
             r.reset(initial_state)
 
-        for r in self.potentials:
-            r.reset(initial_state)
-
     def pre_step(self, state: GameState):
-
-        for r in self.potentials:
-            r.pre_step(state)
-
         for r in self.rewards:
             r.pre_step(state)
 
     def get_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
-
         rewards = [r.get_reward(player, state, previous_action) for r in self.rewards]
-        potentials = [r.get_reward(player, state, previous_action) for r in self.potentials]
-
-        R = np.dot(rewards, self.rewards_weights)
-
-        theta_now = np.dot(potentials, self.potential_weights)
-
-        F = GAMMA * theta_now - self.theta_last[player.car_id]
-
-        self.theta_last[player.car_id] = theta_now
-
-        return R + F
+        R = np.dot(rewards, self.weights)
+        return R
 
     def get_final_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
         return self.get_reward(player, state, previous_action)
