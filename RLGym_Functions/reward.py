@@ -215,7 +215,7 @@ class SeerReward(RewardFunction):
                         AirReward()]
 
         self.weights = [
-            10,  # GameWin Reward
+            5,  # GameWin Reward
             1.5,  # Goal Scored, Sparse, {0,1-1.5}
             0.1,  # Boost, Sparse, [0,1]
             0.05,  # Ball Touch, Sparse, [0,2]
