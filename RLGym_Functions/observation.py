@@ -1,4 +1,5 @@
 import math
+import random
 from typing import Any
 import numpy as np
 from numba import jit
@@ -126,12 +127,21 @@ def _encode_ball(ball):
 
 
 class SeerObsV2(ObsBuilder):
-    def __init__(self, team_size):
+    def __init__(self, team_size, full_game, condition, tick_skip):
         super(SeerObsV2, self).__init__()
         self.team_size = team_size
+        self.full_game = full_game
+        self.condition = condition[0]
+        self.tick_skip = tick_skip
+        self.seconds_left = 0
+        self.dif = 0
 
     def reset(self, initial_state: GameState):
-        pass
+        self.seconds_left = random.randint(200, 250)
+        self.dif = random.choice([-2, -1, 0, 1, 2])
+
+    def pre_step(self, state: GameState):
+        self.seconds_left -= self.tick_skip / 120
 
     def build_obs(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> Any:
 
@@ -145,9 +155,18 @@ class SeerObsV2(ObsBuilder):
             ball = state.ball
             pads = state.boost_pads
 
+        dif, timer, overtime = self.dif, self.seconds_left / 300, False
+        if self.full_game and self.condition.differential:
+            dif, timer, overtime = self.condition.differential, self.condition.timer / 300, self.condition.overtime
+
+        if inverted:
+            dif *= -1
+
+        game_state = [dif, timer, overtime]
+
         ball_data = _encode_ball(ball)
         player_encodings = encode_all_players(player, state, inverted, ball)
         prev_action_enc = get_encoded_actionV2(previous_action)
-        obs = np.concatenate([ball_data, prev_action_enc, pads, *player_encodings])
+        obs = np.concatenate([ball_data, prev_action_enc, pads, *player_encodings, game_state])
 
         return obs

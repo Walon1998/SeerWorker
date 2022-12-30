@@ -7,17 +7,18 @@ from Env.AsyncEnv import AsyncEnv
 
 
 def get_obs_size(team_size):
-    sizes = [103, 147, 191]
+    sizes = [106, 150, 194]
     return sizes[team_size - 1]
 
 
 class MultiEnv(gym.Env):
 
-    def __init__(self, num_instances, team_size, force_paging):
+    def __init__(self, num_instances, team_size, force_paging, full_game):
         super(MultiEnv, self).__init__()
 
         self.num_instances = num_instances
         self.team_size = team_size
+        self.full_game = full_game
 
         assert self.num_instances > 0
 
@@ -27,7 +28,7 @@ class MultiEnv(gym.Env):
         self.instances = []
 
         for i in range(num_instances):
-            self.instances.append(AsyncEnv(team_size, force_paging))
+            self.instances.append(AsyncEnv(team_size, force_paging, full_game))
 
         self.observation_space = self.instances[0].observation_space
         self.action_space = self.instances[0].action_space

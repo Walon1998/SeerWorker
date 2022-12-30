@@ -191,7 +191,7 @@ def RolloutWorker(args):
     p = Process(target=communication_worker, args=(url, work_queue, result_queue))
     p.start()
 
-    env = MultiEnv(args["N"], args["team_size"], args["force_paging"])
+    env = MultiEnv(args["N"], args["team_size"], args["force_paging"], args["full_game"])
     env = MonitorWrapper(env)
 
     if PAST_MODELS != 0.0:
@@ -242,6 +242,7 @@ if __name__ == '__main__':
     parser.add_argument('--host', type=str, required=True)
     parser.add_argument('--port', type=int, required=True)
     parser.add_argument('--force_paging', default=True, type=bool)
+    parser.add_argument('--full_game', default=False, type=bool)
 
     hyper_params = vars(parser.parse_args())
 

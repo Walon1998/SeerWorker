@@ -168,9 +168,33 @@ class SeerTouchBallReward(RewardFunction):
             return 0.0
 
 
+class GameWinReward(RewardFunction):
+    def __init__(self, condition):
+        super(GameWinReward, self).__init__()
+        self.condition = condition
+
+    def reset(self, initial_state: GameState):
+        pass
+
+    def get_reward(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> float:
+
+        if self.condition.done:
+
+            if self.condition.differential > 0 and player.team_num == BLUE_TEAM:
+                return 1
+
+            if self.condition.differential < 0 and player.team_num == ORANGE_TEAM:
+                return 1
+
+        return 0
+
+
 class SeerReward(RewardFunction):
-    def __init__(self):
+    def __init__(self, full_game, condition):
         super(RewardFunction, self).__init__()
+
+        self.full_game = full_game
+        self.condition = condition[0]
 
         self.rewards = [GoalScoredReward(0.1),
                         DiffReward(SaveBoostReward(), 1.0),
@@ -190,7 +214,7 @@ class SeerReward(RewardFunction):
                         ForwardVelocity(),
                         AirReward()]
 
-        self.weights = np.array([
+        self.weights = [
             1.5,  # Goal Scored, Sparse, {0,1-1.5}
             0.1,  # Boost, Sparse, [0,1]
             0.05,  # Ball Touch, Sparse, [0,2]
@@ -208,7 +232,13 @@ class SeerReward(RewardFunction):
             0.00125,  # Save Boost, cont, [0,1]
             0.0015,  # forward velocity, cont, [-1,1]
             0.000125,  # Air Reward, Cont., [0,1]
-        ], dtype=np.float32)
+        ]
+
+        if self.full_game:
+            self.rewards.append(GameWinReward(self.condition))
+            self.weights.append(10)
+
+        self.weights = np.array(self.weights)
 
     def reset(self, initial_state: GameState):
         for r in self.rewards:
