@@ -44,7 +44,7 @@ def worker(work_queue, result_queue, force_paging, team_size, full_game):
            ])
 
     if full_game:
-        condition = [GameCondition()]
+        condition = [GameCondition(max_no_touch_seconds=30)]
         reset = DefaultState()
 
     env = rlgym.make(game_speed=100,
