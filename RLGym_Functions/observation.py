@@ -155,14 +155,17 @@ class SeerObsV2(ObsBuilder):
             ball = state.ball
             pads = state.boost_pads
 
-        dif, timer, overtime = self.dif, self.seconds_left / 300, False
+        dif, timer, overtime = self.dif, self.seconds_left, False
         if self.full_game and self.condition.differential:
-            dif, timer, overtime = self.condition.differential, self.condition.timer / 300, self.condition.overtime
+            dif, timer, overtime = self.condition.differential, self.condition.timer, self.condition.overtime
 
         if inverted:
             dif *= -1
 
-        game_state = [dif, timer, overtime]
+        if overtime:
+            timer = 0
+
+        game_state = [dif / 10, timer / 300, overtime]
 
         ball_data = _encode_ball(ball)
         player_encodings = encode_all_players(player, state, inverted, ball)
