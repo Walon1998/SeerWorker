@@ -1,5 +1,4 @@
 import math
-import random
 from typing import Any
 import numpy as np
 from numba import jit
@@ -127,21 +126,13 @@ def _encode_ball(ball):
 
 
 class SeerObsV2(ObsBuilder):
-    def __init__(self, team_size, full_game, condition, tick_skip):
+    def __init__(self, team_size, condition):
         super(SeerObsV2, self).__init__()
         self.team_size = team_size
-        self.full_game = full_game
-        self.condition = condition[0]
-        self.tick_skip = tick_skip
-        self.seconds_left = 0
-        self.dif = 0
+        self.condition = condition
 
     def reset(self, initial_state: GameState):
-        self.seconds_left = random.randint(200, 250)
-        self.dif = random.choice([-2, -1, 0, 1, 2])
-
-    def pre_step(self, state: GameState):
-        self.seconds_left -= self.tick_skip / 120
+        pass
 
     def build_obs(self, player: PlayerData, state: GameState, previous_action: np.ndarray) -> Any:
 
@@ -155,15 +146,10 @@ class SeerObsV2(ObsBuilder):
             ball = state.ball
             pads = state.boost_pads
 
-        dif, timer, overtime = self.dif, self.seconds_left, False
-        if self.full_game and self.condition.differential:
-            dif, timer, overtime = self.condition.differential, self.condition.timer, self.condition.overtime
+        dif, timer, overtime = self.condition.score, self.condition.timer, self.condition.overtime
 
         if inverted:
             dif *= -1
-
-        if overtime:
-            timer = 0
 
         game_state = [dif / 10, timer / 300, overtime]
 

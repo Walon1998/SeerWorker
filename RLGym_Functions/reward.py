@@ -180,23 +180,23 @@ class GameWinReward(RewardFunction):
 
         if self.condition.done:
 
-            if self.condition.differential > 0 and player.team_num == BLUE_TEAM:
+            if self.condition.score > 0 and player.team_num == BLUE_TEAM:
                 return 1
 
-            if self.condition.differential < 0 and player.team_num == ORANGE_TEAM:
+            if self.condition.score < 0 and player.team_num == ORANGE_TEAM:
                 return 1
 
         return 0
 
 
 class SeerReward(RewardFunction):
-    def __init__(self, full_game, condition):
+    def __init__(self, condition):
         super(RewardFunction, self).__init__()
 
-        self.full_game = full_game
-        self.condition = condition[0]
+        self.condition = condition
 
-        self.rewards = [GoalScoredReward(0.1),
+        self.rewards = [GameWinReward(self.condition),
+                        GoalScoredReward(0.1),
                         DiffReward(SaveBoostReward(), 1.0),
                         SeerTouchBallReward(0.28361335653610786, 0.95, 0.1, 0.013),
                         DemoReward(),
@@ -215,6 +215,7 @@ class SeerReward(RewardFunction):
                         AirReward()]
 
         self.weights = [
+            10,  # GameWin Reward
             1.5,  # Goal Scored, Sparse, {0,1-1.5}
             0.1,  # Boost, Sparse, [0,1]
             0.05,  # Ball Touch, Sparse, [0,2]
@@ -233,10 +234,6 @@ class SeerReward(RewardFunction):
             0.0015,  # forward velocity, cont, [-1,1]
             0.000125,  # Air Reward, Cont., [0,1]
         ]
-
-        if self.full_game:
-            self.rewards.append(GameWinReward(self.condition))
-            self.weights.append(10)
 
         self.weights = np.array(self.weights)
 
