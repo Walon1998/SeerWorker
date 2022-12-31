@@ -39,14 +39,16 @@ class SeerGameCondition(TerminalCondition):  # Mimics a Rocket League game
         if scored != 0:  # Goal scored
             reset = True
 
-        if self.overtime and scored != 0:  # Overtime
-            self.done = True
-
-        elif self.timer <= 0 and current_state.ball.position[2] <= 110:
-            reset = True
-
-            if self.score != 0:
+        if self.overtime:
+            if scored != 0:  # Overtime
                 self.done = True
+
+        else:
+            if self.timer <= 0 and current_state.ball.position[2] <= 110:
+                reset = True
+
+                if self.score != 0:
+                    self.done = True
 
         self.timer -= self.tick_skip / 120
         self.timer = max(0, self.timer)
