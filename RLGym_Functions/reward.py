@@ -182,8 +182,7 @@ class GameWinReward(RewardFunction):
 
             if self.condition.score > 0 and player.team_num == BLUE_TEAM:
                 return 1
-
-            if self.condition.score < 0 and player.team_num == ORANGE_TEAM:
+            elif self.condition.score < 0 and player.team_num == ORANGE_TEAM:
                 return 1
 
         return 0
