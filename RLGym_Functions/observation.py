@@ -219,7 +219,7 @@ class SeerObsV2(ObsBuilder):
         prev_action_enc = get_encoded_actionV2(previous_action)
         pads_encoding = encode_boost_pads(pads)
         game_state = encode_game_state(self.condition, inverted)
-        obs = np.concatenate([ball_data, prev_action_enc, *pads_encoding, *player_encodings, game_state])
+        obs = np.concatenate([*player_encodings, ball_data, prev_action_enc, *pads_encoding, game_state])
 
         return obs
 
