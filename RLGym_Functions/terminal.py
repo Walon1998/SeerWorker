@@ -21,6 +21,7 @@ class SeerGameCondition(TerminalCondition):  # Mimics a Rocket League game
     def reset(self, initial_state: GameState):
         self.initial_state = initial_state
         self.done = False
+        self.no_touch_timeout.reset(initial_state)
 
         if random.random() < self.overtime_prob:
             self.overtime = True
