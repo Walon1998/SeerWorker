@@ -7,7 +7,7 @@ from Env.AsyncEnv import AsyncEnv
 
 
 def get_obs_size(team_size):
-    sizes = [142]
+    sizes = [106, 150, 194]
     return sizes[team_size - 1]
 
 

@@ -29,7 +29,7 @@ class SeerGameCondition(TerminalCondition):  # Mimics a Rocket League game
             self.score = 0
         else:
             self.overtime = False
-            self.timer = random.randrange(10, 300)
+            self.timer = random.uniform(10, 300)
             self.score = random.choice([-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5])
 
     def is_terminal(self, current_state: GameState) -> bool:
