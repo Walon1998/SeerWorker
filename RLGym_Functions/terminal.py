@@ -2,10 +2,11 @@ import random
 
 from rlgym.utils import TerminalCondition
 from rlgym.utils.gamestates import GameState
+from rlgym.utils.terminal_conditions.common_conditions import NoTouchTimeoutCondition
 
 
 class SeerGameCondition(TerminalCondition):  # Mimics a Rocket League game
-    def __init__(self, tick_skip=8, overtime_prob=0.1):
+    def __init__(self, tick_skip=8, overtime_prob=0.1, no_touch_timeout=512):
         super(SeerGameCondition).__init__()
         self.tick_skip = tick_skip
         self.timer = 0
@@ -14,6 +15,8 @@ class SeerGameCondition(TerminalCondition):  # Mimics a Rocket League game
         self.initial_state = None
         self.score = 0
         self.overtime_prob = overtime_prob
+        self.last_touch = 0
+        self.no_touch_timeout = NoTouchTimeoutCondition(no_touch_timeout)
 
     def reset(self, initial_state: GameState):
         self.initial_state = initial_state
@@ -52,5 +55,8 @@ class SeerGameCondition(TerminalCondition):  # Mimics a Rocket League game
 
         self.timer -= self.tick_skip / 120
         self.timer = max(0, self.timer)
+
+        if self.no_touch_timeout.is_terminal(current_state):
+            reset = True
 
         return reset or self.done
