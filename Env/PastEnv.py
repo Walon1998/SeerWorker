@@ -30,7 +30,7 @@ def choose_model(past_models):
             return filename
 
 
-def past_worker(work_queue, result_queue, batch_size, device, url):
+def past_worker(work_queue, result_queue, device, url):
     session = requests.Session()
     policy = SeerNetworkV2().to(device)
 
@@ -42,19 +42,15 @@ def past_worker(work_queue, result_queue, batch_size, device, url):
             past_models = get_past_models(session, url)
             policy.load_state_dict(torch.load(choose_model(past_models), map_location=device))
             policy.eval()
-            lstm_state = torch.zeros(1, batch_size, policy.LSTM.hidden_size, device=device, requires_grad=False, dtype=torch.float32), torch.zeros(1, batch_size, policy.LSTM.hidden_size,
-                                                                                                                                                   device=device, requires_grad=False,
-                                                                                                                                                   dtype=torch.float32)
 
-        obs, episode_starts = work_queue.get()
+        obs = work_queue.get()
         obs = torch.tensor(obs, dtype=torch.float32, requires_grad=False).to(device, non_blocking=True)
-        episode_starts = torch.tensor(episode_starts, dtype=torch.float32, requires_grad=False).to(device, non_blocking=True)
 
         if device == "cuda":
             torch.cuda.synchronize(device="cuda")
 
         with torch.no_grad():
-            actions, lstm_state = policy.predict_actions(obs, lstm_state, episode_starts, True)
+            actions = policy.predict_actions(obs, True)
 
         result_queue.put(actions.to("cpu").numpy())
 
@@ -98,7 +94,7 @@ class PastEnv(gym.Env):
 
         self.work_queue = Queue()
         self.result_queue = Queue()
-        p = Process(target=past_worker, args=(self.work_queue, self.result_queue, self.old_instances * self.team_size, device, url))
+        p = Process(target=past_worker, args=(self.work_queue, self.result_queue,  device, url))
         p.start()
 
         start_past_model_downloader(url)

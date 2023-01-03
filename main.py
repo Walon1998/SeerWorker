@@ -24,7 +24,7 @@ from Env.MonitorWrapper import MonitorWrapper
 from Env.MulitEnv import MultiEnv
 from Env.NormalizeReward import NormalizeReward
 from Env.PastEnv import PastEnv
-from contants import GAMMA, LSTM_UNROLL_LENGTH, N_STEPS, GAE_LAMBDA, PAST_MODELS
+from contants import GAMMA, N_STEPS, GAE_LAMBDA, PAST_MODELS
 
 
 async def communication_worker_async(url, work_queue, result_queue):
@@ -93,50 +93,42 @@ async def send_rollout(session, url, data, version, reward_mean, reward_std):
 
 
 def collect_rollout_cpu(policy, env, buffer, init_data):
-    obs, lstm_states, episode_starts = init_data
+    obs, episode_starts = init_data
 
     for _ in range(N_STEPS):
         obs = torch.as_tensor(obs, dtype=torch.float32)
-        episode_starts = torch.as_tensor(episode_starts, dtype=torch.float32)
 
         with torch.no_grad():
-            actions, values, log_probs, new_lstm_states = policy(obs, lstm_states, episode_starts, False)
+            actions, values, log_probs = policy(obs, False)
 
         actions = actions.numpy()
 
         new_obs, rewards, new_episode_starts, infos = env.step(actions)
 
-        buffer.add(obs.numpy(), actions, rewards, episode_starts.numpy(), values.numpy().ravel(), log_probs.numpy(), lstm_states[0].numpy(), lstm_states[1].numpy())
+        buffer.add(obs.numpy(), actions, rewards, episode_starts, values.numpy().ravel(), log_probs.numpy())
 
         obs = new_obs
         episode_starts = new_episode_starts
-        lstm_states = new_lstm_states
 
     assert buffer.is_full()
     with torch.no_grad():
-        last_values = policy.predict_value(torch.as_tensor(obs, dtype=torch.float32), lstm_states, torch.as_tensor(episode_starts, dtype=torch.float32))
+        last_values = policy.predict_value(torch.as_tensor(obs, dtype=torch.float32))
 
     rollout = buffer, last_values.numpy().ravel(), episode_starts, env.get_monitor_data()
 
-    return rollout, (obs, lstm_states, episode_starts)
+    return rollout, (obs, episode_starts)
 
 
 def collect_rollout_cuda(policy, env, buffer, init_data):
-    last_obs, lstm_states, last_episode_start = init_data
-
-    lstm_states = lstm_states[0].to("cuda", non_blocking=True), lstm_states[1].to("cuda", non_blocking=True)
-    last_lstm_states_0_cpu = lstm_states[0].to("cpu", non_blocking=True)
-    last_lstm_states_1_cpu = lstm_states[1].to("cpu", non_blocking=True)
+    last_obs, last_episode_start = init_data
 
     last_obs_gpu = torch.as_tensor(last_obs, dtype=torch.float32).to("cuda", non_blocking=True)
-
-    last_episode_starts_gpu = torch.as_tensor(last_episode_start, dtype=torch.float32).to("cuda", non_blocking=True)
 
     for _ in range(N_STEPS):
         torch.cuda.synchronize(device="cuda")
 
         with torch.no_grad():
-            action, value, log_probs, lstm_states = policy(last_obs_gpu, lstm_states, last_episode_starts_gpu, False)
+            action, value, log_probs = policy(last_obs_gpu, False)
 
         action = action.to("cpu", non_blocking=True)
         value = value.to("cpu", non_blocking=True)
@@ -149,31 +141,24 @@ def collect_rollout_cuda(policy, env, buffer, init_data):
         new_obs, rewards, dones, infos = env.step(action)
 
         new_obs_gpu = torch.as_tensor(new_obs, dtype=torch.float32).to("cuda", non_blocking=True)
-        dones_gpu = torch.as_tensor(dones, dtype=torch.float32).to("cuda", non_blocking=True)
-        lstm_states_0_cpu = lstm_states[0].to("cpu", non_blocking=True)
-        lstm_states_1_cpu = lstm_states[1].to("cpu", non_blocking=True)
-        buffer.add(last_obs, action, rewards, last_episode_start, value.numpy().ravel(), log_probs.numpy(), last_lstm_states_0_cpu.numpy(),
-                   last_lstm_states_1_cpu.numpy())
+
+        buffer.add(last_obs, action, rewards, last_episode_start, value.numpy().ravel(), log_probs.numpy())
 
         last_obs = new_obs
         last_obs_gpu = new_obs_gpu
 
         last_episode_start = dones
-        last_episode_starts_gpu = dones_gpu
-
-        last_lstm_states_0_cpu = lstm_states_0_cpu
-        last_lstm_states_1_cpu = lstm_states_1_cpu
 
     assert buffer.is_full()
 
     torch.cuda.synchronize(device="cuda")
 
     with torch.no_grad():
-        last_values = policy.predict_value(last_obs_gpu, lstm_states, last_episode_starts_gpu)
+        last_values = policy.predict_value(last_obs_gpu)
 
     rollout = buffer, last_values.to("cpu").numpy().ravel(), dones, env.get_monitor_data()
 
-    return rollout, (last_obs, lstm_states, last_episode_start)
+    return rollout, (last_obs, last_episode_start)
 
 
 def RolloutWorker(args):
@@ -200,19 +185,17 @@ def RolloutWorker(args):
     env = NormalizeReward(env, 0.0, 1.0, gamma=GAMMA)
 
     obs = env.reset()
-    lstm_states = torch.zeros(1, env.num_envs, policy.LSTM.hidden_size, requires_grad=False, dtype=torch.float32), torch.zeros(1, env.num_envs, policy.LSTM.hidden_size,
-                                                                                                                               requires_grad=False, dtype=torch.float32)
+
     episode_starts = np.ones(env.num_envs, dtype=np.float32)
 
-    init_data = obs, lstm_states, episode_starts
+    init_data = obs, episode_starts
 
     policy_version = -1
 
     while True:
         start = time.time()
 
-        buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, policy.LSTM.hidden_size, LSTM_UNROLL_LENGTH, GAMMA,
-                               GAE_LAMBDA)
+        buffer = RolloutBuffer(N_STEPS, env.obs_shape[1], 7, env.num_envs, GAMMA, GAE_LAMBDA)
         state_dict, state_dict_version, reward_mean, reward_std = result_queue.get()
 
         policy_version = update_policy(policy, policy_version, state_dict, state_dict_version, args["device"])
