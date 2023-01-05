@@ -104,7 +104,7 @@ class PastEnv(gym.Env):
         obs = self.env.reset()
 
         obs_old = obs[self.mask_old_opponents]
-        self.work_queue.put((obs_old, np.ones(self.old_instances * self.team_size, dtype=np.float32)))
+        self.work_queue.put(obs_old)
 
         obs_new = obs[self.mask_new_opponent]
 
@@ -120,8 +120,7 @@ class PastEnv(gym.Env):
         obs, rew, done, info = self.env.step(combined_actions)
 
         obs_old = obs[self.mask_old_opponents]
-        done_old = done[self.mask_old_opponents]
-        self.work_queue.put((obs_old, done_old))
+        self.work_queue.put(obs_old)
 
 
         obs_new = obs[self.mask_new_opponent]
