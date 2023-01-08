@@ -19,7 +19,7 @@ from rlgym_tools.extra_terminals.game_condition import GameCondition
 
 from SeerPPO.V2 import SeerActionV2
 from SeerPPO.V2 import SeerObsV2
-from RLGym_Functions.reward import SeerReward, DistributeRewardsV2, AnnealRewards, SeerReward2
+from RLGym_Functions.reward import SeerReward, DistributeRewardsV2, AnnealRewards
 from RLGym_Functions.state_setter import SeerReplaySetterV2
 from SeerPPO.V2 import SeerGameCondition
 
@@ -35,7 +35,7 @@ def worker(work_queue, result_queue, force_paging, team_size):
                      gravity=1,
                      boost_consumption=1,
                      terminal_conditions=[condition],
-                     reward_fn=DistributeRewardsV2(SeerReward2(condition)),
+                     reward_fn=DistributeRewardsV2(SeerReward(condition)),
                      obs_builder=SeerObsV2(team_size, condition),
                      action_parser=SeerActionV2(),
                      state_setter=WeightedSampleSetter(
